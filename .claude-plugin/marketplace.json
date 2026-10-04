@@ -1,0 +1,12 @@
+{
+  "name": "alandovskis",
+  "description": "Personal agent skills marketplace",
+  "owner": { "name": "Alex", "email": "alex@landovskis.com" },
+  "plugins": [
+    {
+      "name": "alandovskis",
+      "source": "./alandovskis",
+      "description": "Personal agent skills: requirements docs (BRD/PRD), planning and implementation, code review, commits, architecture docs"
+    }
+  ]
+}

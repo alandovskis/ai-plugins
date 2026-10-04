@@ -22,7 +22,7 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 
 ## Install
 
-- **Claude Code**: `claude --plugin-dir ./alandovskis`, or add the parent directory as a marketplace.
+- **Claude Code**: `claude --plugin-dir ./alandovskis`, or add the repo root as a marketplace: `/plugin marketplace add <path-or-git-url>` then `/plugin install alandovskis@alandovskis`.
 - **Codex**: `.codex-plugin/plugin.json` points at `./skills/`.
 - **Gemini CLI**: `gemini extensions install ./alandovskis` (skills auto-discovered from `skills/`).
 - **Anything else** (Cursor, Copilot, OpenCode, ...): copy or symlink `skills/*` into the runtime's skills directory.
