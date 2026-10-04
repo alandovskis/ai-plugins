@@ -1,0 +1,14 @@
+{
+  "name": "alex-skills",
+  "version": "0.1.0",
+  "description": "Personal agent skills: requirements docs (BRD/PRD), planning and implementation, code review, commits, architecture docs",
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    }
+  }
+}
