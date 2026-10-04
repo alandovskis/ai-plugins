@@ -5,7 +5,7 @@ description: Connect an agent runtime to the Atlassian Rovo MCP server (Jira and
 
 # Atlassian MCP
 
-Jira is the issue tracker and it is accessed through MCP: use the Atlassian MCP tools for all Jira work (creating, reading, updating and searching issues), not the Jira web UI, REST calls or other CLIs. Confluence holds requirements documents and uses the same server. It is a remote server using OAuth 2.1; nothing needs to be installed locally.
+Issues are tracked in Jira (not GitHub Issues), and Jira is accessed through MCP: use the Atlassian MCP tools for all Jira work (creating, reading, updating and searching issues), not the Jira web UI, REST calls or other CLIs. Confluence holds requirements documents and uses the same server. It is a remote server using OAuth 2.1; nothing needs to be installed locally.
 
 ## Steps
 

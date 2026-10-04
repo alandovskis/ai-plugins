@@ -41,6 +41,16 @@
         "The assistant asks the user which site to use instead of taking the first result",
         "No Jira issue is created before the site is confirmed"
       ]
+    },
+    {
+      "id": 5,
+      "prompt": "File an issue for the login timeout bug we just found.",
+      "expected_output": "The issue is created in Jira through the Atlassian MCP.",
+      "expectations": [
+        "The issue is created with Atlassian MCP tools such as createJiraIssue",
+        "No GitHub Issue is created and no curl, REST call or other Jira CLI is used",
+        "The Jira site is resolved with getAccessibleAtlassianResources, asking the user if several sites are returned"
+      ]
     }
   ]
 }
