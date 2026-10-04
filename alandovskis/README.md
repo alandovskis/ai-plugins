@@ -1,4 +1,4 @@
-# alex-skills
+# alandovskis
 
 Agent skills in the open [Agent Skills](https://agentskills.io) format: each skill is `skills/<name>/SKILL.md`
 with `name` and `description` frontmatter, plus optional `references/`. No runtime-specific frontmatter or tool
@@ -19,9 +19,9 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 
 ## Install
 
-- **Claude Code**: `claude --plugin-dir ./alex-skills`, or add the parent directory as a marketplace.
+- **Claude Code**: `claude --plugin-dir ./alandovskis`, or add the parent directory as a marketplace.
 - **Codex**: `.codex-plugin/plugin.json` points at `./skills/`.
-- **Gemini CLI**: `gemini extensions install ./alex-skills` (skills auto-discovered from `skills/`).
+- **Gemini CLI**: `gemini extensions install ./alandovskis` (skills auto-discovered from `skills/`).
 - **Anything else** (Cursor, Copilot, OpenCode, ...): copy or symlink `skills/*` into the runtime's skills directory.
 
 ## Runtime requirements
