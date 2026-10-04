@@ -13,6 +13,7 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | plan-prd, implement-prd | PRD → SDD/test plan/implementation plan → test-first implementation |
 | prd-to-jira | Jira epic/stories from a PRD |
 | skeptical-code-review | Evidence-based change review |
+| bilingual-apps | Apps are bilingual EN/FR: externalised strings, locale formatting, parity checks |
 | conventional-commits | Logical-group conventional commits |
 | design-doc-markdown, design-doc-confluence | Reverse-engineer design docs |
 | extract-branch, split-prs, mr-description | Git/branch/MR workflows (formerly Claude Code slash commands) |
