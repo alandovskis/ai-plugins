@@ -12,7 +12,7 @@ Web applications are written in **Rust compiled to WebAssembly (WASM)**. Do not 
 1. **Language:** Rust for application logic and UI, targeting `wasm32-unknown-unknown`.
 2. **Browser bindings:** `wasm-bindgen`, with `web-sys` and `js-sys` for DOM and browser APIs. Keep hand-written JavaScript to a minimum and isolate it behind a small, typed interface.
 3. **Build and dev server:** Trunk for browser apps (bundling, dev server, rebuild on change). `wasm-pack` is for building Rust libraries consumed from JavaScript, not whole apps.
-4. **UI framework:** a Rust one (for example Leptos, Yew or Dioxus). The user has not chosen one, so ask once when a project starts, then record the choice in the project's docs and reuse it.
+4. **UI framework:** Leptos. Use another Rust framework (for example Yew or Dioxus) only if the user asks or a hard constraint requires it; say why and ask first. Check the current Leptos docs with Context7 for rendering mode (client-side vs SSR) and project setup rather than relying on memory.
 5. **Backend:** Rust as well when a server is needed, sharing types with the frontend through a common crate.
 6. **Always use the latest versions** of crates and the Rust toolchain. Look up current releases with Context7 or crates.io rather than relying on memory, since this ecosystem changes quickly.
 
