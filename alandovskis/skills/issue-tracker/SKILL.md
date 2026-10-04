@@ -5,7 +5,7 @@ description: Jira is the issue tracker, accessed through the Atlassian MCP. Use 
 
 # Issue tracker: Jira
 
-Issues are tracked in **Jira**. Do not create GitHub Issues, and do not suggest another tracker (Linear, GitLab issues, TODO files) unless the user asks.
+Issues are tracked in **Jira**. Never create GitHub Issues, and do not use or suggest another tracker (Linear, GitLab issues, TODO files), even if the user asks for one by name: say that issues are tracked in Jira and file it there instead.
 
 - Use the **Atlassian MCP** tools for all Jira work: creating, reading, searching, updating, linking and commenting. Do not use the Jira web UI, raw REST calls or other Jira CLIs.
 - Resolve the site with `getAccessibleAtlassianResources` first. If it returns several sites or the project is unclear, ask the user rather than guessing.
