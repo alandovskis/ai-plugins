@@ -2,10 +2,12 @@
 
 ## Skills
 
-- Every skill ships with an eval: `alandovskis/skills/<name>/evals/evals.json`, in the same format as
-  `alandovskis/skills/bilingual-apps/evals/evals.json` (`skill_name`, and `evals[]` with `id`, `prompt`,
-  `expected_output`, `expectations`).
-- Add or update the eval in the same change as the skill.
+- Every skill ships with evals in the `claude plugin eval` format, under `alandovskis/evals/<skill>-<n>/`:
+  - `prompt.md`: a natural user request that should trigger the skill (frontmatter sets limits and the system note).
+  - `graders/expectations.md`: an `llm` grader listing the expected behaviours as PASS/FAIL conditions.
+  - `graders/skill-fired.md`: a `tool_used: Skill` check that the skill was invoked.
+- Add or update the evals in the same change as the skill.
+- Run with `claude plugin eval alandovskis --runs 1 --no-publish` from the repo root (results go to `alandovskis/evals/results/`, which is git-ignored).
 
 ## Issues
 
