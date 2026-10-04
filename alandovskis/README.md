@@ -36,4 +36,6 @@ implement-prd, prd-to-jira) need an Atlassian MCP connector exposing `getAccessi
 `getConfluencePage`, `createJiraIssue`, etc. `skeptical-code-review` and `implement-prd` use read-only
 subagents where the runtime supports them, and can run them sequentially otherwise.
 
+Evals: `skills/<name>/evals/evals.json` (prompt + expectations, skill-creator format) where present; currently `bilingual-apps`.
+
 Not included (Claude-specific, not skills): hooks, rules, routines, settings, agent definitions.

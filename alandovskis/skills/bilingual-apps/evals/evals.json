@@ -1,0 +1,58 @@
+{
+  "skill_name": "bilingual-apps",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Build a small React login form with email and password fields, a submit button, and validation errors for an empty or malformed email.",
+      "expected_output": "A login form whose text comes from en and fr locale resources, with an i18n setup, language switching, and no hardcoded strings.",
+      "expectations": [
+        "No user-facing string (labels, button, placeholders, validation errors) is hardcoded in the component; all are referenced by key",
+        "Both an English and a French locale resource exist and contain the same keys",
+        "The French strings are natural French with correct accents, not English copied as a placeholder",
+        "An i18n library or mechanism is set up before or together with the form",
+        "The user can switch language and the document language attribute is updated"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Add a 'You have N unread messages' badge to the header of our dashboard. We use i18next.",
+      "expected_output": "A pluralized message defined in both languages using the framework's plural support, with no manual concatenation.",
+      "expectations": [
+        "The message is defined in both en and fr locale files in the same change",
+        "Pluralization uses i18next plural features rather than manual if/else or string concatenation",
+        "The count is passed as a named placeholder inside a full sentence",
+        "The French version treats 0 and 1 as singular"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Show an order summary page with the order date, the total price in dollars, and a list of item names.",
+      "expected_output": "Dates, currency and lists rendered via locale-aware formatting for the active language.",
+      "expectations": [
+        "The date is formatted with a locale-aware API (for example Intl.DateTimeFormat) using the active locale, not a hardcoded format string",
+        "The price is formatted with a locale-aware currency API using the active locale",
+        "The item list is joined with a locale-aware list formatter or equivalent, not a hardcoded ', ' and 'and'",
+        "The page labels are externalised in both en and fr"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Write a PRD section describing requirements for a new customer feedback form feature.",
+      "expected_output": "Requirements that explicitly include bilingual EN/FR support with testable criteria.",
+      "expectations": [
+        "The requirements state that the feature is bilingual English/French",
+        "At least one acceptance criterion covers language switching or EN/FR translation parity",
+        "Layout tolerance for longer French text is mentioned or implied by a criterion"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Write a Python function that parses a CSV file of server logs and returns the number of lines per HTTP status code.",
+      "expected_output": "A plain function with no internationalisation machinery, since nothing is user-facing.",
+      "expectations": [
+        "The solution does not introduce locale files, i18n libraries or translation keys",
+        "The response does not claim the function needs EN/FR localisation"
+      ]
+    }
+  ]
+}
