@@ -1,0 +1,38 @@
+{
+  "skill_name": "ci",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "This Node.js project has no CI yet. Set up continuous integration that runs our lint and test scripts.",
+      "expected_output": "A GitHub Actions workflow in .github/workflows that follows the ci skill rules.",
+      "expectations": [
+        "A workflow file is created under .github/workflows/ and no other CI system's config is introduced",
+        "It triggers on pull_request and on push to the default branch, plus workflow_dispatch",
+        "Top-level permissions are set to contents: read",
+        "Dependency caching is enabled and concurrency with cancel-in-progress and a job timeout-minutes are set",
+        "Action versions were looked up and pinned to a current major version rather than guessed from memory"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "We want CI on GitLab CI for our new service. Write the pipeline config.",
+      "expected_output": "The assistant does not silently introduce a non-GitHub CI system.",
+      "expectations": [
+        "The assistant recognises the user explicitly asked for GitLab CI and either honours that request or confirms it",
+        "It does not substitute GitHub Actions without saying so",
+        "If the project already used another CI system, it asks before migrating instead of rewriting"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Add a release workflow that deploys to production and uses our API token.",
+      "expected_output": "A release workflow using secrets and environments safely.",
+      "expectations": [
+        "The token is read from GitHub Actions secrets, never written into a file in the repository",
+        "The deploy job uses a GitHub environment, with required reviewers recommended for production",
+        "Extra permissions are granted per job rather than at the top level",
+        "The workflow calls a repository script or task rather than embedding long inline logic"
+      ]
+    }
+  ]
+}
