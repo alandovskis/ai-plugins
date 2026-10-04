@@ -12,6 +12,7 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | brd, prd, brd-to-prd | Requirements documents, published to Confluence |
 | plan-prd, implement-prd | PRD → SDD/test plan/implementation plan → test-first implementation |
 | prd-to-jira | Jira epic/stories from a PRD |
+| atlassian-mcp | Wire up and verify the Atlassian Rovo MCP (Jira/Confluence) |
 | skeptical-code-review | Evidence-based change review |
 | bilingual-apps | Apps are bilingual EN/FR: externalised strings, locale formatting, parity checks |
 | web-stack | Web apps use Rust / WebAssembly |
