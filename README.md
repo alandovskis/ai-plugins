@@ -11,8 +11,6 @@ code review, commits and architecture docs.
 /plugin install alandovskis@alandovskis
 ```
 
-The repository is private, so the machine adding it needs GitHub access (for example an SSH key or `gh auth login`).
-
 See [`alandovskis/README.md`](alandovskis/README.md) for the skill list, other runtimes (Codex, Gemini CLI) and
 runtime requirements.
 
