@@ -12,7 +12,6 @@ and English/French bilingual apps. Fork and edit them to suit yours.
 
 - **Atlassian MCP connector** for `brd`, `prd`, `brd-to-prd`, `plan-prd`, `implement-prd`, `prd-to-jira` and `issue-tracker`.
 - **Node.js** (for the bundled Context7 MCP server, run through `npx`).
-- **GitLab** is assumed only by `mr-description`; the other Git skills work with any remote.
 
 ## Install
 

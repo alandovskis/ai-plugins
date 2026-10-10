@@ -19,7 +19,7 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | ci | Use GitHub Actions for CI/CD |
 | conventional-commits | Logical-group conventional commits |
 | design-doc-markdown, design-doc-confluence | Reverse-engineer design docs |
-| extract-branch, split-prs, mr-description | Git/branch/MR workflows (formerly Claude Code slash commands) |
+| extract-branch, split-prs | Git/branch/MR workflows (formerly Claude Code slash commands) |
 
 ## Install
 
