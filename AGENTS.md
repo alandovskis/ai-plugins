@@ -18,5 +18,5 @@
 
 Some evals fail on purpose: they record places where the model does not follow an explicit `SKILL.md` rule
 (`brd-2`, `extract-branch-1`, `implement-prd-2`, `plan-prd-2`, `prd-2`, `split-prs-1`,
-`split-prs-2`). Fix the skill, not the eval. `implement-prd-1`, `prd-to-jira-2` and `architecture-2` are
+`split-prs-2`). Fix the skill, not the eval. `implement-prd-1` and `prd-to-jira-2` are
 judge-sensitive and can fail on a correct reply.

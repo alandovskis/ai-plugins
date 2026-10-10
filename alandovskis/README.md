@@ -8,7 +8,6 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 
 | Skill | Purpose |
 |---|---|
-| architecture | C4 + Mermaid architecture docs |
 | brd, prd, brd-to-prd | Requirements documents, published to Confluence |
 | plan-prd, implement-prd | PRD → SDD/test plan/implementation plan → test-first implementation |
 | prd-to-jira | Jira epic/stories from a PRD |
