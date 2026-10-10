@@ -23,7 +23,9 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 
 ## Install
 
-- **Claude Code**: `claude --plugin-dir ./alandovskis`, or add the repo root as a marketplace: `/plugin marketplace add <path-or-git-url>` then `/plugin install alandovskis@alandovskis`.
+- **Claude Code**: add the repo as a marketplace, then install the plugin:
+  `/plugin marketplace add alandovskis/ai-plugins` then `/plugin install alandovskis@alandovskis`.
+  For local development, use `claude --plugin-dir ./alandovskis`.
 - **Codex**: `.codex-plugin/plugin.json` points at `./skills/`.
 - **Gemini CLI**: `gemini extensions install ./alandovskis` (skills auto-discovered from `skills/`).
 - **Anything else** (Cursor, Copilot, OpenCode, ...): copy or symlink `skills/*` into the runtime's skills directory.
@@ -39,6 +41,7 @@ implement-prd, prd-to-jira) need an Atlassian MCP connector exposing `getAccessi
 `getConfluencePage`, `createJiraIssue`, etc. `implement-prd` uses read-only
 subagents where the runtime supports them, and can run them sequentially otherwise.
 
-Evals: `skills/<name>/evals/evals.json` (prompt + expectations, skill-creator format) where present; currently `bilingual-apps`.
+Evals: `evals/<skill>-<n>/` in the `claude plugin eval` format (see `AGENTS.md` at the repo root); present for
+`bilingual-apps`, `ci`, `issue-tracker`, `review-code` and `web-stack`.
 
 Not included (Claude-specific, not skills): hooks, rules, routines, settings, agent definitions.
