@@ -16,9 +16,7 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | bilingual-apps | Apps are bilingual EN/FR: externalised strings, locale formatting, parity checks |
 | web-stack | Web apps use Rust / WebAssembly |
 | ci | Use GitHub Actions for CI/CD |
-| conventional-commits | Logical-group conventional commits |
 | design-doc-confluence | Reverse-engineer design docs in Confluence wiki markup |
-| extract-branch, split-prs | Git/branch/MR workflows (formerly Claude Code slash commands) |
 
 ## Install
 

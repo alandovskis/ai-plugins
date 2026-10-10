@@ -1,6 +1,6 @@
 {
   "name": "alandovskis",
   "version": "0.4.0",
-  "description": "Personal agent skills: requirements docs (BRD/PRD), planning and implementation, code review and commits",
+  "description": "Personal agent skills: requirements docs (BRD/PRD), planning and implementation, code review",
   "author": { "name": "Alex", "email": "alex@landovskis.com" }
 }
