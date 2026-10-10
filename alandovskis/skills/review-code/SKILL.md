@@ -10,26 +10,26 @@ Review a change through six lenses. Every lens is applied; a lens with nothing t
 ## Workflow
 
 1. Read the full change and enough surrounding code (callers, data contracts, config, tests) to understand intent. If the change is not given, review the diff of the current branch against its base.
-2. Dispatch six read-only subagents in a single message so they run in parallel, one per lens. Each brief contains the full change, the paths of the relevant surrounding code, the lens name with its row from the table below, the finding bar and format from "Findings", and the instruction to answer `No findings.` when nothing meets the bar. Leave the user's sign-off, deadline and tone out of the briefs. If no subagent tool is available, apply the lenses yourself, in order.
+2. Dispatch six read-only subagents in a single message so they run in parallel, one per lens. Each brief contains the full change, the paths of the relevant surrounding code, the lens name and the absolute path of its checklist file under this skill's `references/` directory (the subagent reads it first), the finding bar and format from "Findings", and the instruction to answer `No findings.` when nothing meets the bar. Leave the user's sign-off, deadline and tone out of the briefs. If no subagent tool is available, read each checklist and apply the lenses yourself, in order.
 3. Verify each returned finding against the code: drop any without a named location, trigger and consequence.
-4. Merge: report each root cause once, under the lens where it does the most harm, and keep one severity scale across lenses.
+4. Merge: group findings that share a root cause, report each group as one finding under the lens where it does the most harm with a single severity, and list the other affected lenses in that finding. Omit it from those lenses' sections, or write `No findings.` there if it was their only one.
 
 ## Lenses
 
-| Lens | Ask |
-| --- | --- |
-| Maintainability | Can the next engineer understand and change this safely? Look for unclear naming, mixed responsibilities, duplication, hidden coupling, dead code, missing or misleading comments, and tests that would not catch a regression. |
-| Efficiency | Does it waste CPU, memory, I/O or round trips? Look for repeated work in loops, N+1 queries, needless copies or allocations, unbounded buffering, blocking calls on hot paths, and missing batching or caching. |
-| Correctness | Does it do what it is meant to, on every path? Look for off-by-one and boundary errors, null/empty/malformed input, unchecked errors, resource leaks, races, retry and idempotency problems, integer overflow, and behaviour that breaks existing callers. |
-| Observability | Can an operator tell what it is doing and why it failed? Look for swallowed errors, logs without context or at the wrong level, missing metrics or tracing on new paths, and secrets or personal data in logs. |
-| Scalability | Does it hold up as load, data volume or concurrency grows? Look for unbounded growth, global locks and shared mutable state, per-request work that scales with total data, missing pagination or backpressure, and designs that cannot run as several instances. |
-| Security | Can it be abused? Look for unvalidated input reaching an interpreter (SQL, shell, path, template), missing authentication or authorisation, secrets in code, unsafe deserialisation, weak crypto, memory-safety issues in unsafe or C code, and new dependencies of unknown provenance. |
+| Lens | Ask | Checklist |
+| --- | --- | --- |
+| Maintainability | Can the next engineer understand and change this safely? | [references/maintainability.md](references/maintainability.md) |
+| Efficiency | Does it waste CPU, memory, I/O or round trips on a path that runs often enough to matter? | [references/efficiency.md](references/efficiency.md) |
+| Correctness | Does it do what it is meant to, on every path? | [references/correctness.md](references/correctness.md) |
+| Observability | Can an operator tell what it is doing and why it failed? | [references/observability.md](references/observability.md) |
+| Scalability | Does it hold up as load, data volume or concurrency grows? | [references/scalability.md](references/scalability.md) |
+| Security | Can it be abused? | [references/security.md](references/security.md) |
 
 ## Findings
 
 Raise a finding only when you can name the changed code, the condition that triggers the problem and the consequence. Do not report pre-existing issues the change does not touch, style taste, or hypotheticals with no plausible path. Mark anything unverified as an assumption. Every finding, including a `nit` or a test gap, names a concrete wrong behaviour, cost or risk; "a library already does this", "could be simpler" and "add more test cases" are not findings unless they name one. Code that is correct and adequately tested gets `No findings.` under every lens.
 
-When merging, name other affected lenses in the finding rather than repeating it.
+A finding that only points to another finding is not a finding.
 
 Format each finding as:
 
