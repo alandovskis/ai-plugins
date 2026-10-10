@@ -17,7 +17,7 @@ Instructions:
 3. Get the diff statistics: `git diff <base-branch>...<target-branch> --stat`
 4. Get the commit history: `git log <base-branch>..<target-branch> --oneline`
 5. Analyze the full diff to understand the changes: `git diff <base-branch>...<target-branch>`
-5. Generate an MR description that includes:
+6. Generate an MR description that includes:
    - **Summary**: High-level overview of what this MR accomplishes
    - **Key Changes**: Organized list of major changes by category/module
    - **Files Changed**: Statistics (files changed, insertions, deletions)
