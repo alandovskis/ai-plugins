@@ -3,7 +3,7 @@ description: "A diff is reviewed through all six lenses."
 tags: [review-code]
 max_turns: 20
 timeout_seconds: 600
-allowed_tools: [Read, Glob, Grep, Skill]
+allowed_tools: [Read, Glob, Grep, Skill, Agent]
 append_system_prompt: "This is an automated evaluation with no human to answer questions. Do not ask clarifying questions; state reasonable assumptions and proceed. The workspace is empty, so review only the diff in the user's message and give the complete review as your final reply."
 ---
 

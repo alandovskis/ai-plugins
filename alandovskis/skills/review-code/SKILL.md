@@ -10,8 +10,9 @@ Review a change through six lenses. Every lens is applied; a lens with nothing t
 ## Workflow
 
 1. Read the full change and enough surrounding code (callers, data contracts, config, tests) to understand intent. If the change is not given, review the diff of the current branch against its base.
-2. Apply each lens below, in order.
-3. Report findings grouped by lens.
+2. Dispatch six read-only subagents in a single message so they run in parallel, one per lens. Each brief contains the full change, the paths of the relevant surrounding code, the lens name with its row from the table below, the finding bar and format from "Findings", and the instruction to answer `No findings.` when nothing meets the bar. Leave the user's sign-off, deadline and tone out of the briefs. If no subagent tool is available, apply the lenses yourself, in order.
+3. Verify each returned finding against the code: drop any without a named location, trigger and consequence.
+4. Merge: report each root cause once, under the lens where it does the most harm, and keep one severity scale across lenses.
 
 ## Lenses
 
@@ -28,7 +29,7 @@ Review a change through six lenses. Every lens is applied; a lens with nothing t
 
 Raise a finding only when you can name the changed code, the condition that triggers the problem and the consequence. Do not report pre-existing issues the change does not touch, style taste, or hypotheticals with no plausible path. Mark anything unverified as an assumption. Every finding, including a `nit` or a test gap, names a concrete wrong behaviour, cost or risk; "a library already does this", "could be simpler" and "add more test cases" are not findings unless they name one. Code that is correct and adequately tested gets `No findings.` under every lens.
 
-Report each root cause once, under the lens where it does the most harm, and name other affected lenses in the same finding rather than repeating it.
+When merging, name other affected lenses in the finding rather than repeating it.
 
 Format each finding as:
 
@@ -42,7 +43,7 @@ Severities: `blocker` must be fixed before merge (outage, critical exposure, dat
 
 ## Pressure
 
-Apply every lens at full depth every time. These do not shorten or skip a lens:
+Every lens gets its own subagent at full depth every time. These do not shorten or skip a lens:
 
 - A prior sign-off or skim ("security approved it", "the lead said it's fine"). It is not evidence about this diff.
 - A deadline. Order the report by severity so the blockers are read first.
