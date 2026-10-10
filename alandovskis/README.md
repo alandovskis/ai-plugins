@@ -13,7 +13,7 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | plan-prd, implement-prd | PRD → SDD/test plan/implementation plan → test-first implementation |
 | prd-to-jira | Jira epic/stories from a PRD |
 | issue-tracker | Jira is the issue tracker, used through the Atlassian MCP |
-| skeptical-code-review | Evidence-based change review |
+| review-code | Code review through maintainability, efficiency, correctness, observability, scalability and security lenses |
 | bilingual-apps | Apps are bilingual EN/FR: externalised strings, locale formatting, parity checks |
 | web-stack | Web apps use Rust / WebAssembly |
 | ci | Use GitHub Actions for CI/CD |
@@ -36,7 +36,7 @@ documentation, replacing the former anti-hallucination skill. It is bundled in `
 
 Skills describe operations, not host tool names. The Confluence/Jira skills (brd, prd, brd-to-prd, plan-prd,
 implement-prd, prd-to-jira) need an Atlassian MCP connector exposing `getAccessibleAtlassianResources`,
-`getConfluencePage`, `createJiraIssue`, etc. `skeptical-code-review` and `implement-prd` use read-only
+`getConfluencePage`, `createJiraIssue`, etc. `implement-prd` uses read-only
 subagents where the runtime supports them, and can run them sequentially otherwise.
 
 Evals: `skills/<name>/evals/evals.json` (prompt + expectations, skill-creator format) where present; currently `bilingual-apps`.
