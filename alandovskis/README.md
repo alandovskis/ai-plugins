@@ -13,6 +13,7 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | prd-to-jira | Jira epic/stories from a PRD |
 | issue-tracker | Jira is the issue tracker, used through the Atlassian MCP |
 | review-code | Code review through maintainability, efficiency, correctness, observability, scalability and security lenses |
+| create-pr | Review with review-code, fix, open the PR, watch CI, merge |
 | bilingual-apps | Apps are bilingual EN/FR: externalised strings, locale formatting, parity checks |
 | web-stack | Web apps use Rust / WebAssembly |
 | ci | Use GitHub Actions for CI/CD |
