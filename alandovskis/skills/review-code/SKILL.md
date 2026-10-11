@@ -5,12 +5,12 @@ description: Use when asked to review code, a diff, a pull request or a branch t
 
 # Review code
 
-Review a change through six lenses. Every lens is applied; a lens with nothing to report says so.
+Review a change through six lenses, plus a UX lens when the change touches web UI. Every applicable lens is applied; a lens with nothing to report says so.
 
 ## Workflow
 
 1. Read the full change and enough surrounding code (callers, data contracts, config, tests) to understand intent. If the change is not given, review the diff of the current branch against its base.
-2. Dispatch six read-only subagents in a single message so they run in parallel, one per lens. Each brief contains the full change, the paths of the relevant surrounding code, the lens name and the absolute path of its checklist file under this skill's `references/` directory (the subagent reads it first), the finding bar and format from "Findings", and the instruction to answer `No findings.` when nothing meets the bar. Leave the user's sign-off, deadline and tone out of the briefs. If no subagent tool is available, read each checklist and apply the lenses yourself, in order.
+2. Dispatch one read-only subagent per applicable lens (six, or seven when the UX lens applies) in a single message so they run in parallel. Each brief contains the full change, the paths of the relevant surrounding code, the lens name and the absolute path of its checklist file under this skill's `references/` directory (the subagent reads it first), the finding bar and format from "Findings", and the instruction to answer `No findings.` when nothing meets the bar. Leave the user's sign-off, deadline and tone out of the briefs. If no subagent tool is available, read each checklist and apply the lenses yourself, in order.
 3. Verify each returned finding against the code: drop any without a named location, trigger and consequence.
 4. Merge: group findings that share a root cause, report each group as one finding under the lens where it does the most harm with a single severity, and list the other affected lenses in that finding. Omit it from those lenses' sections, or write `No findings.` there if it was their only one.
 
@@ -24,6 +24,7 @@ Review a change through six lenses. Every lens is applied; a lens with nothing t
 | Observability | Can an operator tell what it is doing and why it failed? | [references/observability.md](references/observability.md) |
 | Scalability | Does it hold up as load, data volume or concurrency grows? | [references/scalability.md](references/scalability.md) |
 | Security | Can it be abused? | [references/security.md](references/security.md) |
+| UX | Can everyone, on any device and theme, use it, and does it hold together as a system? Applies only when the change adds or edits files a browser renders (HTML, CSS, JSX/TSX, Vue, Svelte, templates, web components). | [references/ux.md](references/ux.md) |
 
 ## Findings
 
@@ -43,7 +44,7 @@ Severities: `blocker` must be fixed before merge (outage, critical exposure, dat
 
 ## Pressure
 
-Every lens gets its own subagent at full depth every time. These do not shorten or skip a lens:
+Every applicable lens gets its own subagent at full depth every time. These do not shorten or skip a lens:
 
 - A prior sign-off or skim ("security approved it", "the lead said it's fine"). It is not evidence about this diff.
 - A deadline. Order the report by severity so the blockers are read first.
