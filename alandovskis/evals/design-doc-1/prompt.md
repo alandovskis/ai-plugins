@@ -1,5 +1,5 @@
 ---
-description: "A design doc for a complex project is drafted with the article's sections and reviewed by three parallel lens subagents."
+description: "A design doc for a complex project is drafted with the article's sections and reviewed by lens subagents."
 tags: [design-doc]
 max_turns: 25
 timeout_seconds: 900

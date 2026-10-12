@@ -1,5 +1,5 @@
 ---
-description: "An existing draft is reviewed through clarity, conciseness and consistency, each by its own subagent."
+description: "An existing draft is reviewed through clarity, conciseness and consistency, by lens subagents."
 tags: [design-doc]
 max_turns: 25
 timeout_seconds: 900
