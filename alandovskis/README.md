@@ -17,6 +17,7 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | bilingual-apps | Apps are bilingual EN/FR: externalised strings, locale formatting, parity checks |
 | web-stack | Web apps use Rust / WebAssembly |
 | ci | Use GitHub Actions for CI/CD |
+| design-doc | Write a design doc (objective, goals, SLOs, alternatives, open issues), reviewed by clarity, conciseness and consistency subagents |
 | design-doc-confluence | Reverse-engineer design docs in Confluence wiki markup |
 
 ## Install
@@ -40,6 +41,6 @@ implement-prd, prd-to-jira) need an Atlassian MCP connector exposing `getAccessi
 subagents where the runtime supports them, and can run them sequentially otherwise.
 
 Evals: `evals/<skill>-<n>/` in the `claude plugin eval` format (see `AGENTS.md` at the repo root); present for
-`bilingual-apps`, `ci`, `issue-tracker`, `review-code` and `web-stack`.
+`bilingual-apps`, `ci`, `design-doc`, `issue-tracker`, `review-code` and `web-stack`.
 
 Not included (Claude-specific, not skills): hooks, rules, routines, settings, agent definitions.
