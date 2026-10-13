@@ -38,13 +38,15 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 - `●` your prompt (its first line).
 - `├` a tool call with its main argument and status: `…` running, `✓` done, `✗` failed or refused, `⊘` refused
   by another plugin's hook. A call you or a settings hook refuse reaches the sidebar as a failed call, so it shows `✗`.
-- `⇢` a subagent; its own tool calls are drawn under it, even when several subagents run at once.
+- `⇢` a subagent; its own tool calls are drawn under it, even when several subagents run at once. A workflow's agents
+  are drawn under its `Workflow` call.
 - `└ ◆` Claude's answer: how long the turn took and its first line. An interrupted or failed turn shows `└ ✗` and
-  the reason (`aborted`, `error`, `refusal`).
+  the reason (`aborted`, `error`, `refusal` with its explanation).
 
 It docks beside the transcript in the fullscreen layout from 110 columns; elsewhere it opens above the prompt. The flow
-starts when the plugin loads, empties on `/clear`, and keeps the last 400 lines, each cut to 120 characters. It only
-observes: it never changes or blocks a prompt or a tool call.
+starts when the plugin loads, empties on `/clear` and `/resume`, and keeps the last 400 lines; on each line the tool
+name is cut to 48 characters and the detail to 120. It only observes: it never changes or blocks a prompt or a tool
+call.
 
 To work on it: `claude --plugin-dir ./alandovskis` loads the plugin and reloads it as files change;
 `claude plugin test alandovskis` runs the tests. Once loaded, the engine writes the API types to

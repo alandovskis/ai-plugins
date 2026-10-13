@@ -9,8 +9,8 @@ export interface FlowNode {
   status: FlowStatus
   /** The subagent the call ran in; absent on the main conversation's. */
   agentId?: string
-  /** On an Agent call's row: the subagent it started. */
-  spawnedAgentId?: string
+  /** On the row of an Agent or Workflow call: the subagents it started. */
+  spawnedAgentIds?: string[]
 }
 
 declare module 'claude-code' {

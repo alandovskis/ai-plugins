@@ -5,8 +5,9 @@ import type { FlowNode, FlowStatus } from '../types'
 
 const PANE = 'conversation-flow'
 const TITLE = 'Flow'
-// 400 rows of at most LABEL_MAX + DETAIL_MAX characters stay well inside the
-// 100,000 characters a drawn tree keeps, so the newest rows are never cut.
+// 400 rows of a label cut to LABEL_MAX, a detail cut to DETAIL_MAX and their
+// few marks and indent (about 175 characters) stay well inside the 100,000
+// characters a drawn tree keeps, so the newest rows are never cut.
 const KEEP = 400
 const LABEL_MAX = 48
 const DETAIL_MAX = 120
@@ -23,7 +24,12 @@ const MARKS = {
   denied: { glyph: '⊘', color: 'error' },
 } as const satisfies Record<FlowStatus, { glyph: string; color: Color }>
 
-const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
+// Cut by code point, so a cut never splits an emoji.
+const clip = (text: string, max: number) => {
+  const chars = [...text]
+
+  return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : text
+}
 
 const firstLine = (text: string) => text.trim().split('\n', 1)[0] ?? ''
 
@@ -54,8 +60,26 @@ const node = (fields: FlowNode): FlowNode => ({
 
 const add = ($: EngineInterface, fields: FlowNode) => update($, nodes, list => [...list, node(fields)].slice(-KEEP))
 
-const patch = ($: EngineInterface, id: string, change: Partial<FlowNode>) =>
-  update($, nodes, list => list.map(one => (one.id === id ? { ...one, ...change } : one)))
+const patch = ($: EngineInterface, id: string, change: (one: FlowNode) => FlowNode) =>
+  update($, nodes, list => list.map(one => (one.id === id ? change(one) : one)))
+
+// Resolves whether a state write landed, logging one that did not to the debug
+// log, so a write left running beside a tool never rejects unhandled.
+const landed = ($: EngineInterface, what: string, write: Promise<unknown>) =>
+  write.then(
+    () => true,
+    (error: unknown) => {
+      $.ui.log(`conversation flow: ${what} failed: ${error instanceof Error ? error.message : String(error)}`, {
+        to: 'debug',
+      })
+
+      return false
+    },
+  )
+
+// The tool rows still being written, by tool_use_id: agent.spawn waits on its
+// call's row, so the link to the subagent lands on a row that exists.
+const rowWrites = new Map<string, Promise<boolean>>()
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
@@ -81,7 +105,8 @@ export const register: Register = on => {
   // The hooks below only observe, so they carry no .catch: one that fails is
   // skipped, the event goes on, and the engine logs why.
   on('session.end', async ($, e, next) => {
-    if (e.reason === 'clear') await update($, nodes, () => [])
+    // /clear and /resume put another conversation in this one's place.
+    if (e.reason === 'clear' || e.reason === 'resume') await update($, nodes, () => [])
 
     return next(e)
   })
@@ -104,14 +129,15 @@ export const register: Register = on => {
     const isAgent = AGENT_TOOLS.has(e.tool)
     const subagentType = isAgent && 'subagent_type' in e && typeof e.subagent_type === 'string' ? e.subagent_type : 'agent'
     // The row is written while the tool runs, never holding it up.
-    const added = add($, {
+    const added = landed($, 'writing a tool row', add($, {
       id: e.tool_use_id,
       kind: isAgent ? 'agent' : 'tool',
       label: isAgent ? `⇢ ${subagentType}` : e.tool,
       detail: detailOf(e),
       status: 'running',
       ...(e.agentId === undefined ? {} : { agentId: e.agentId }),
-    })
+    }))
+    rowWrites.set(e.tool_use_id, added)
     let status: FlowStatus = 'error'
     try {
       const ran = await next(e)
@@ -119,16 +145,22 @@ export const register: Register = on => {
 
       return ran
     } finally {
-      await added
-      await patch($, e.tool_use_id, { status })
+      // Never throws, so what the tool answered or threw is what goes on.
+      rowWrites.delete(e.tool_use_id)
+      if (await added) await landed($, 'settling a tool row', patch($, e.tool_use_id, one => ({ ...one, status })))
     }
   })
 
-  // Links an Agent call's row to the subagent it started, so that agent's
-  // own calls are drawn under it.
+  // Links the row of the call that started a subagent (an Agent call, or a
+  // Workflow call whose agents all share its id) to that subagent, so the
+  // agent's own calls are drawn under it.
   on('agent.spawn', async ($, e, next) => {
     const spawned = await next(e)
-    if (spawned.agentId !== undefined) await patch($, e.tool_use_id, { spawnedAgentId: spawned.agentId })
+    const { agentId } = spawned
+    if (agentId !== undefined && e.tool_use_id !== '') {
+      await rowWrites.get(e.tool_use_id)
+      await patch($, e.tool_use_id, one => ({ ...one, spawnedAgentIds: [...(one.spawnedAgentIds ?? []), agentId] }))
+    }
 
     return spawned
   })
@@ -137,7 +169,8 @@ export const register: Register = on => {
     const done = await next(e)
     if (e.agentId === undefined) {
       const isAnswer = e.reason === 'answer'
-      const parts = [seconds(e.durationMs), ...(isAnswer ? [] : [e.reason]), firstLine(done.text)]
+      const why = e.reason === 'refusal' ? (e.refusal.explanation ?? e.refusal.category ?? '') : ''
+      const parts = [seconds(e.durationMs), ...(isAnswer ? [] : [e.reason, firstLine(why)]), firstLine(done.text)]
       await add($, {
         id: `answer-${e.turnId}`,
         kind: 'answer',
@@ -164,7 +197,7 @@ export const register: Register = on => {
 
     // A subagent's calls are drawn under the row of the Agent call that
     // started it; a call whose agent row is gone is drawn nested, in place.
-    const spawned = new Set(list.flatMap(one => (one.spawnedAgentId === undefined ? [] : [one.spawnedAgentId])))
+    const spawned = new Set(list.flatMap(one => one.spawnedAgentIds ?? []))
     const children = new Map<string, FlowNode[]>()
     for (const one of list) {
       if (one.agentId !== undefined && spawned.has(one.agentId)) {
@@ -204,9 +237,9 @@ export const register: Register = on => {
 
     const rows = (one: FlowNode, depth: number): ReturnType<typeof row>[] => [
       row(one, depth),
-      ...(one.spawnedAgentId === undefined ? [] : (children.get(one.spawnedAgentId) ?? [])).flatMap(child =>
-        rows(child, depth + 1),
-      ),
+      ...(one.spawnedAgentIds ?? [])
+        .flatMap(agentId => children.get(agentId) ?? [])
+        .flatMap(child => rows(child, depth + 1)),
     ]
 
     const roots = list.filter(one => one.agentId === undefined || !spawned.has(one.agentId))
