@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate the marketplace, the plugin and the skill layout. Run from anywhere.
+# Validate the marketplace, the plugin and the skill layout, and run the hooks module's tests. Run from anywhere.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -8,6 +8,7 @@ command -v claude >/dev/null || claude_cmd=(npx --yes @anthropic-ai/claude-code@
 
 "${claude_cmd[@]}" plugin validate .
 "${claude_cmd[@]}" plugin validate alandovskis
+"${claude_cmd[@]}" plugin test alandovskis
 
 status=0
 for skill in alandovskis/skills/*/; do

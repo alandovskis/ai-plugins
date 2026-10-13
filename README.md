@@ -2,7 +2,7 @@
 
 A personal [Claude Code](https://claude.com/claude-code) plugin marketplace. It currently contains one plugin,
 [`alandovskis`](alandovskis/README.md): agent skills for requirements docs (BRD/PRD), planning and implementation,
-code review.
+code review, plus a Claude Code `/flow` sidebar showing the conversation flow.
 
 These skills are opinionated and built around my own workflow. They assume, for example, Jira and Confluence for
 requirements and issues (through an Atlassian MCP connector), GitHub Actions for CI, Rust/WebAssembly for web apps
@@ -26,8 +26,8 @@ runtime requirements.
 ## Layout
 
 - `.claude-plugin/marketplace.json`: the marketplace manifest.
-- `alandovskis/`: the plugin (skills, evals, manifests).
-- `scripts/validate.sh`: validates the manifests and skill layout (run by CI).
+- `alandovskis/`: the plugin (skills, evals, manifests, and the hooks module with its tests).
+- `scripts/validate.sh`: validates the manifests and skill layout and runs the hooks module's tests (run by CI).
 - `AGENTS.md`: contributor instructions (skill evals, issue tracking).
 
 ## License

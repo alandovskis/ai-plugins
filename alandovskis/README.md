@@ -20,6 +20,38 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | design-doc | Write a design doc (objective, goals, SLOs, alternatives, open issues), reviewed by clarity, conciseness and consistency subagents |
 | design-doc-confluence | Reverse-engineer design docs in Confluence wiki markup |
 
+## Mods (Claude Code only)
+
+`hooks/register.tsx` is a Claude Code hooks module, with its state contract in `types/` and tests in `tests/`.
+
+**Conversation flow:** `/flow` toggles a sidebar that shows the conversation one line per event:
+
+```
+● You Fix the parser
+├ ✓ Read src/parser.ts
+├ ✗ Bash rm -rf /
+├ ✓ ⇢ Explore Find callers
+│ ├ ✓ Read src/lexer.ts
+└ ◆ Claude 4.2s · All done.
+```
+
+- `●` your prompt (its first line).
+- `├` a tool call with its main argument and status: `…` running, `✓` done, `✗` failed or refused, `⊘` refused
+  by another plugin's hook. A call you or a settings hook refuse reaches the sidebar as a failed call, so it shows `✗`.
+- `⇢` a subagent; its own tool calls are drawn under it, even when several subagents run at once. Each of a
+  workflow's agents gets a `⇢` row of its own under its `Workflow` call.
+- `└ ◆` Claude's answer: how long the turn took and its first line. An interrupted or failed turn shows `└ ✗` and
+  the reason (`aborted`, `error`, `refusal` with its explanation).
+
+It docks beside the transcript in the fullscreen layout from 110 columns; elsewhere it opens above the prompt. The flow
+starts when the plugin loads, empties on `/clear` and `/resume`, and keeps the last 400 lines; on each line the tool
+name is cut to 48 characters and the detail to 120. It only observes: it never changes or blocks a prompt or a tool
+call.
+
+To work on it: `claude --plugin-dir ./alandovskis` loads the plugin and reloads it as files change;
+`claude plugin test alandovskis` runs the tests. Once loaded, the engine writes the API types to
+`.claude-plugin/types/` (git-ignored), which `tsconfig.json` extends, so `tsc -p alandovskis` type-checks the module.
+
 ## Install
 
 - **Claude Code**: add the repo as a marketplace, then install the plugin:
@@ -43,4 +75,5 @@ subagents where the runtime supports them, and can run them sequentially otherwi
 Evals: `evals/<skill>-<n>/` in the `claude plugin eval` format (see `AGENTS.md` at the repo root); present for
 `bilingual-apps`, `ci`, `design-doc`, `issue-tracker`, `review-code` and `web-stack`.
 
-Not included (Claude-specific, not skills): hooks, rules, routines, settings, agent definitions.
+Not included (Claude-specific, not skills): rules, routines, settings, agent definitions. The one exception is the
+Claude Code hooks module above, which other runtimes ignore.
