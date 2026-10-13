@@ -1,7 +1,7 @@
 {
   "name": "alandovskis",
   "version": "0.6.0",
-  "description": "Personal agent skills: requirements docs (BRD/PRD), planning and implementation, code review",
+  "description": "Personal agent skills: requirements docs (BRD/PRD), planning and implementation, code review, plus a /flow conversation sidebar",
   "author": { "name": "Alex", "email": "alex@landovskis.com" },
   "types": "./types/index.d.ts"
 }

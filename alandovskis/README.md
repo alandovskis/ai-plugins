@@ -29,20 +29,22 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 ```
 ● You Fix the parser
 ├ ✓ Read src/parser.ts
-├ ⊘ Bash rm -rf /
+├ ✗ Bash rm -rf /
 ├ ✓ ⇢ Explore Find callers
-│ │ ✓ Read src/lexer.ts
+│ ├ ✓ Read src/lexer.ts
 └ ◆ Claude 4.2s · All done.
 ```
 
 - `●` your prompt (its first line).
-- `├` a tool call with its main argument and status: `…` running, `✓` done, `✗` failed, `⊘` denied.
-- `⇢` a subagent; its own tool calls are indented under it, in the order they ran.
-- `└ ◆` Claude's answer: how long the turn took and its first line.
+- `├` a tool call with its main argument and status: `…` running, `✓` done, `✗` failed or refused, `⊘` refused
+  by another plugin's hook. A call you or a settings hook refuse reaches the sidebar as a failed call, so it shows `✗`.
+- `⇢` a subagent; its own tool calls are drawn under it, even when several subagents run at once.
+- `└ ◆` Claude's answer: how long the turn took and its first line. An interrupted or failed turn shows `└ ✗` and
+  the reason (`aborted`, `error`, `refusal`).
 
 It docks beside the transcript in the fullscreen layout from 110 columns; elsewhere it opens above the prompt. The flow
-starts when the plugin loads and keeps the last 500 lines. It only observes: it never changes or blocks a prompt or a
-tool call.
+starts when the plugin loads, empties on `/clear`, and keeps the last 400 lines, each cut to 120 characters. It only
+observes: it never changes or blocks a prompt or a tool call.
 
 To work on it: `claude --plugin-dir ./alandovskis` loads the plugin and reloads it as files change;
 `claude plugin test alandovskis` runs the tests. Once loaded, the engine writes the API types to
