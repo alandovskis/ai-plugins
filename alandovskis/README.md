@@ -22,7 +22,8 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 
 ## Mods (Claude Code only)
 
-`hooks/register.tsx` is a Claude Code hooks module, with its state contract in `types/` and tests in `tests/`.
+A Claude Code hooks module: `hooks/register.tsx` wires each event to the two features, whose state changes and
+drawing live in `hooks/flow.tsx` and `hooks/subagents.tsx`; the state contract is in `types/` and the tests in `tests/`.
 
 **Conversation flow:** `/flow` toggles a sidebar that shows the conversation one line per event:
 
@@ -48,7 +49,23 @@ starts when the plugin loads, empties on `/clear` and `/resume`, and keeps the l
 name is cut to 48 characters and the detail to 120. It only observes: it never changes or blocks a prompt or a tool
 call.
 
-To work on it: `claude --plugin-dir ./alandovskis` loads the plugin and reloads it as files change;
+**Subagent band:** while subagents run, a band above the prompt shows what each one is doing:
+
+```
+⇢ Explore Find callers of parse() 12s · 7 calls
+   … Grep parse\(
+✓ Plan Design the lexer split 31s · 9 calls
+```
+
+- `⇢` a running subagent: its type (a workflow agent's name), its task, how long it has run and its tool calls so far,
+  with its latest call under it (`…` running, `✓`, `✗`, `⊘`).
+- `✓` or `✗` a finished subagent, with its total time; it stays for 30 seconds, then leaves the band.
+- Running subagents come first. The band shows at most six, as many as its rows allow, and counts the rest
+  (`+2 more`). It draws nothing while no subagent has run for 30 seconds, and empties on `/clear` and `/resume`.
+
+`/subagents` hides the band, and shows it again; the choice is kept across sessions.
+
+To work on them: `claude --plugin-dir ./alandovskis` loads the plugin and reloads it as files change;
 `claude plugin test alandovskis` runs the tests. Once loaded, the engine writes the API types to
 `.claude-plugin/types/` (git-ignored), which `tsconfig.json` extends, so `tsc -p alandovskis` type-checks the module.
 

@@ -13,8 +13,38 @@ export interface FlowNode {
   spawnedAgentIds?: string[]
 }
 
+export type RunStatus = 'running' | 'done' | 'error'
+
+/** A subagent's most recent tool call. */
+export interface SubagentCall {
+  id: string
+  tool: string
+  detail: string
+  status: FlowStatus
+}
+
+/** One subagent, from its spawn until its turn ends. */
+export interface SubagentRun {
+  agentId: string
+  /** Its type, or its name for a workflow agent. */
+  label: string
+  task: string
+  status: RunStatus
+  /** Milliseconds since the epoch, on the engine's clock. */
+  startedAt: number
+  endedAt?: number
+  calls: number
+  latest?: SubagentCall
+}
+
 declare module 'claude-code' {
   interface PluginState {
-    alandovskis: { flowNodes: FlowNode[] }
+    alandovskis: {
+      flowNodes: FlowNode[]
+      subagentRuns: SubagentRun[]
+      /** The engine's clock as of the band's last tick, for elapsed times. */
+      subagentsNow: number
+      subagentsHidden: boolean
+    }
   }
 }

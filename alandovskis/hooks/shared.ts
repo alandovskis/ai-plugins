@@ -1,0 +1,49 @@
+import type { Color, ToolCallResult } from 'claude-code'
+
+import type { FlowStatus } from '../types'
+
+// The argument that best names what a tool call is about, in order of preference.
+export const DETAIL_ARGS = ['description', 'file_path', 'notebook_path', 'path', 'pattern', 'command', 'url', 'query', 'skill', 'prompt']
+export const AGENT_TOOLS = new Set(['Agent', 'Task'])
+
+export const MARKS = {
+  running: { glyph: '…', color: 'warning' },
+  done: { glyph: '✓', color: 'success' },
+  error: { glyph: '✗', color: 'error' },
+  denied: { glyph: '⊘', color: 'error' },
+} as const satisfies Record<FlowStatus, { glyph: string; color: Color }>
+
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
+// Cut by grapheme, so a cut never splits an emoji, a flag or a ZWJ sequence;
+// it reads no further than the cut, however long the line.
+export const clip = (text: string, max: number) => {
+  // A string's UTF-16 length is never less than its grapheme count.
+  if (text.length <= max) return text
+  const kept: string[] = []
+  for (const { segment } of graphemes.segment(text)) {
+    if (kept.length === max) return `${kept.slice(0, max - 1).join('')}…`
+    kept.push(segment)
+  }
+
+  return text
+}
+
+export const firstLine = (text: string) => text.trim().split('\n', 1)[0] ?? ''
+
+export const detailOf = (args: Readonly<Record<string, unknown>>) => {
+  for (const name of DETAIL_ARGS) {
+    const value = args[name]
+    if (typeof value === 'string' && value.trim() !== '') return firstLine(value)
+  }
+
+  return ''
+}
+
+// A deny from a plugin's hook is the only refusal a tool.call hook can tell
+// apart: the person's or a settings hook's arrives as an errored result.
+export const statusOf = (ran: ToolCallResult): FlowStatus => {
+  if (ran.deny !== undefined) return 'denied'
+
+  return ran.isError ? 'error' : 'done'
+}
