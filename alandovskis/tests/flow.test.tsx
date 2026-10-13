@@ -32,7 +32,10 @@ type CallArgs = Parameters<Engine['tool']['call']>[0]
 const call = ($: Engine, args: Record<string, unknown>) => $.tool.call(args as unknown as CallArgs)
 
 // The engine raising agent.spawn for the Agent call `toolUseId`; a test calls
-// it from inside that call's tool.call, where the engine raises it.
+// it from inside that call's tool.call, where the engine raises it. Untested:
+// that agent.spawn waits for its call's row to be written before linking. In
+// the kit the row always lands first, and holding its write back leaves no
+// signal for releasing it in time without deadlocking the correct order.
 const spawn = ($: Engine, toolUseId: string) =>
   $.agent.spawn({
     tool_use_id: toolUseId,
@@ -127,13 +130,21 @@ test("a workflow's agents all draw under its call", async ($, on) => {
     return { result: 'ok' as never, text: 'ok' }
   })
   on('agent.spawn', () => ({ model: 'm', agentId: `w${++next}` }))
+  on('turn.complete', () => ({ text: '' }))
 
   await call($, { tool: 'Workflow', description: 'Review', tool_use_id: 'tu-wf' })
   await call($, { tool: 'Read', file_path: 'one.ts', agentId: 'w2' })
   await call($, { tool: 'Read', file_path: 'two.ts', agentId: 'w1' })
+  await $.turn.complete({ answer: '', durationMs: 10, isAborted: false, turnId: 'w1-turn', reason: 'answer', agentId: 'w1' })
 
   for (const surface of SURFACES) {
-    expect(await flowLines($, surface)).toEqual(['├ ✓ Workflow Review', '│ ├ ✓ Read two.ts', '│ ├ ✓ Read one.ts'])
+    expect(await flowLines($, surface)).toEqual([
+      '├ ✓ Workflow Review',
+      '│ ├ ✓ ⇢ Explore x',
+      '│ │ ├ ✓ Read two.ts',
+      '│ ├ … ⇢ Explore x',
+      '│ │ ├ ✓ Read one.ts',
+    ])
   }
 })
 
@@ -182,13 +193,13 @@ test('a call still running, an interrupted answer and a long line', async ($, on
   on('tool.call', () => new Promise(resolve => (finish = () => resolve({ result: 'ok' as never, text: 'ok' }))))
   on('turn.complete', () => ({ text: 'Let me look at\nthe rest' }))
 
-  const running = $.tool.call({ tool: 'Bash', command: `${'x'.repeat(118)}😀😀😀` })
+  const running = $.tool.call({ tool: 'Bash', command: `${'x'.repeat(118)}🇨🇦🇨🇦🇨🇦` })
   await $.turn.complete({ answer: 'x', durationMs: 3100, isAborted: true, turnId: 't1', reason: 'aborted' })
 
   for (const surface of SURFACES) {
     const lines = await flowLines($, surface)
-    // 121 code points cut to 119 and an ellipsis, the emoji kept whole.
-    expect(lines[0]).toBe(`├ … Bash ${'x'.repeat(118)}😀…`)
+    // 121 characters cut to 119 and an ellipsis, the flag kept whole.
+    expect(lines[0]).toBe(`├ … Bash ${'x'.repeat(118)}🇨🇦…`)
     expect(lines[1]).toBe('└ ✗ Claude 3.1s · aborted · Let me look at')
   }
   finish()

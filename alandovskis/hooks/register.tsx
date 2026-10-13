@@ -24,11 +24,20 @@ const MARKS = {
   denied: { glyph: '⊘', color: 'error' },
 } as const satisfies Record<FlowStatus, { glyph: string; color: Color }>
 
-// Cut by code point, so a cut never splits an emoji.
-const clip = (text: string, max: number) => {
-  const chars = [...text]
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
-  return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : text
+// Cut by grapheme, so a cut never splits an emoji, a flag or a ZWJ sequence;
+// it reads no further than the cut, however long the line.
+const clip = (text: string, max: number) => {
+  // A string's UTF-16 length is never less than its grapheme count.
+  if (text.length <= max) return text
+  const kept: string[] = []
+  for (const { segment } of graphemes.segment(text)) {
+    if (kept.length === max) return `${kept.slice(0, max - 1).join('')}…`
+    kept.push(segment)
+  }
+
+  return text
 }
 
 const firstLine = (text: string) => text.trim().split('\n', 1)[0] ?? ''
@@ -81,6 +90,9 @@ const landed = ($: EngineInterface, what: string, write: Promise<unknown>) =>
 // call's row, so the link to the subagent lands on a row that exists.
 const rowWrites = new Map<string, Promise<boolean>>()
 
+const linked = (one: FlowNode, agentId: string): FlowNode =>
+  (one.spawnedAgentIds ?? []).includes(agentId) ? one : { ...one, spawnedAgentIds: [...(one.spawnedAgentIds ?? []), agentId] }
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -129,7 +141,7 @@ export const register: Register = on => {
     const isAgent = AGENT_TOOLS.has(e.tool)
     const subagentType = isAgent && 'subagent_type' in e && typeof e.subagent_type === 'string' ? e.subagent_type : 'agent'
     // The row is written while the tool runs, never holding it up.
-    const added = landed($, 'writing a tool row', add($, {
+    const added = landed($, `writing the row of ${e.tool} ${e.tool_use_id}`, add($, {
       id: e.tool_use_id,
       kind: isAgent ? 'agent' : 'tool',
       label: isAgent ? `⇢ ${subagentType}` : e.tool,
@@ -145,21 +157,43 @@ export const register: Register = on => {
 
       return ran
     } finally {
-      // Never throws, so what the tool answered or threw is what goes on.
-      rowWrites.delete(e.tool_use_id)
-      if (await added) await landed($, 'settling a tool row', patch($, e.tool_use_id, one => ({ ...one, status })))
+      // Never throws, so what the tool answered or threw is what goes on. The
+      // entry stays until the row is written: a call that hands its work to
+      // the background (a Workflow) may see its agents spawn after it returns.
+      const isWritten = await added
+      if (rowWrites.get(e.tool_use_id) === added) rowWrites.delete(e.tool_use_id)
+      if (isWritten) {
+        await landed($, `settling the row of ${e.tool} ${e.tool_use_id}`, patch($, e.tool_use_id, one => ({ ...one, status })))
+      }
     }
   })
 
-  // Links the row of the call that started a subagent (an Agent call, or a
-  // Workflow call whose agents all share its id) to that subagent, so the
-  // agent's own calls are drawn under it.
+  // Links the row of the call that started a subagent to that subagent, so
+  // the agent's own calls are drawn under it. An Agent call's row stands for
+  // its one subagent. A Workflow call's agents all share its id, so each gets
+  // a row of its own under the call, linked through the run's id.
   on('agent.spawn', async ($, e, next) => {
     const spawned = await next(e)
     const { agentId } = spawned
     if (agentId !== undefined && e.tool_use_id !== '') {
       await rowWrites.get(e.tool_use_id)
-      await patch($, e.tool_use_id, one => ({ ...one, spawnedAgentIds: [...(one.spawnedAgentIds ?? []), agentId] }))
+      const run = `run:${e.tool_use_id}`
+      const agentRow = node({
+        id: `agent-${agentId}`,
+        kind: 'agent',
+        label: `⇢ ${e.name ?? e.subagentType}`,
+        detail: firstLine(e.description),
+        status: 'running',
+        agentId: run,
+        spawnedAgentIds: [agentId],
+      })
+      await update($, nodes, list => {
+        const parent = list.find(one => one.id === e.tool_use_id)
+        if (parent === undefined) return list
+        if (parent.kind === 'agent') return list.map(one => (one === parent ? linked(one, agentId) : one))
+
+        return [...list.map(one => (one === parent ? linked(one, run) : one)), agentRow].slice(-KEEP)
+      })
     }
 
     return spawned
@@ -167,7 +201,11 @@ export const register: Register = on => {
 
   on('turn.complete', async ($, e, next) => {
     const done = await next(e)
-    if (e.agentId === undefined) {
+    // A workflow agent's own row settles when its turn does.
+    if (e.agentId !== undefined) {
+      const status: FlowStatus = e.reason === 'answer' ? 'done' : 'error'
+      await patch($, `agent-${e.agentId}`, one => ({ ...one, status }))
+    } else {
       const isAnswer = e.reason === 'answer'
       const why = e.reason === 'refusal' ? (e.refusal.explanation ?? e.refusal.category ?? '') : ''
       const parts = [seconds(e.durationMs), ...(isAnswer ? [] : [e.reason, firstLine(why)]), firstLine(done.text)]
@@ -195,8 +233,9 @@ export const register: Register = on => {
       )
     }
 
-    // A subagent's calls are drawn under the row of the Agent call that
-    // started it; a call whose agent row is gone is drawn nested, in place.
+    // A subagent's calls are drawn under the row of the Agent call, or the
+    // workflow agent's row, that stands for it; a call whose row is gone is
+    // drawn nested, in place.
     const spawned = new Set(list.flatMap(one => one.spawnedAgentIds ?? []))
     const children = new Map<string, FlowNode[]>()
     for (const one of list) {

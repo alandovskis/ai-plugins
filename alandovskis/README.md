@@ -38,8 +38,8 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 - `●` your prompt (its first line).
 - `├` a tool call with its main argument and status: `…` running, `✓` done, `✗` failed or refused, `⊘` refused
   by another plugin's hook. A call you or a settings hook refuse reaches the sidebar as a failed call, so it shows `✗`.
-- `⇢` a subagent; its own tool calls are drawn under it, even when several subagents run at once. A workflow's agents
-  are drawn under its `Workflow` call.
+- `⇢` a subagent; its own tool calls are drawn under it, even when several subagents run at once. Each of a
+  workflow's agents gets a `⇢` row of its own under its `Workflow` call.
 - `└ ◆` Claude's answer: how long the turn took and its first line. An interrupted or failed turn shows `└ ✗` and
   the reason (`aborted`, `error`, `refusal` with its explanation).
 
