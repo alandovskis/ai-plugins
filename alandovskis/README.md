@@ -52,13 +52,14 @@ call.
 **Subagent band:** while subagents run, a band above the prompt shows what each one is doing:
 
 ```
-⇢ Explore (claude-haiku-5-5) Find callers of parse() 12s · 7 calls
+claude-haiku-5-5 ⇢ Explore Find callers of parse() 12s · 7 calls
    … Grep parse\(
-✓ Plan (claude-sonnet-5-5) Design the lexer split 31s · 9 calls
+claude-sonnet-5-5 ✓ Plan Design the lexer split 31s · 9 calls
 ```
 
-- `⇢` a running subagent: its type (a workflow agent's name), the model it runs on, its task, how long it has run and
-  its tool calls so far, with its latest call under it (`…` running, `✓`, `✗`, `⊘`).
+- Each line starts with the model the subagent runs on, as a badge on a coloured background.
+- `⇢` a running subagent: its type (a workflow agent's name), its task, how long it has run and its tool calls so far,
+  with its latest call under it (`…` running, `✓`, `✗`, `⊘`).
 - `✓` or `✗` a finished subagent, with its total time; it stays for 30 seconds, then leaves the band.
 - Running subagents come first. The band shows at most six, as many as its rows allow, and counts the rest
   (`+2 more`). It draws nothing while no subagent has run for 30 seconds, and empties on `/clear` and `/resume`.

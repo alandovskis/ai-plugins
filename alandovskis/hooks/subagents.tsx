@@ -84,8 +84,8 @@ export const bandView = (
 
     return [
       <Text wrap="truncate-end">
-        <Text color={mark.color}>{mark.glyph} </Text>
-        <Text bold>{run.label}</Text> <Text dimColor>({run.model})</Text> {run.task} <Text dimColor>{time} · {callCount(run.calls)}</Text>
+        <Text color="inverseText" backgroundColor="claude">{` ${run.model} `}</Text> <Text color={mark.color}>{mark.glyph} </Text>
+        <Text bold>{run.label}</Text> {run.task} <Text dimColor>{time} · {callCount(run.calls)}</Text>
       </Text>,
       latest === undefined ? null : (
         <Box paddingLeft={3}>
