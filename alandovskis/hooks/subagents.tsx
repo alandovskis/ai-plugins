@@ -10,6 +10,8 @@ import { MARKS } from './shared'
 // A finished subagent stays this long, so a quick one is not missed.
 const LINGER_MS = 30_000
 const MAX_ENTRIES = 6
+// The frame's top and bottom borders.
+const FRAME_ROWS = 2
 export const LABEL_MAX = 48
 export const TEXT_MAX = 120
 
@@ -62,7 +64,8 @@ export const bandView = (
   if (visible.length === 0) return undefined
 
   // Running subagents first, each group in the order they started; then as
-  // many entries as the band's rows allow, a row kept for the rest's count.
+  // many entries as the frame's rows allow, a row kept for the rest's count.
+  const maxRows = room.maxRows - FRAME_ROWS
   const ordered = [
     ...visible.filter(run => run.status === 'running'),
     ...visible.filter(run => run.status !== 'running'),
@@ -71,7 +74,7 @@ export const bandView = (
   let rows = 0
   for (const [index, run] of ordered.entries()) {
     const reserve = index < ordered.length - 1 ? 1 : 0
-    if (shown.length === MAX_ENTRIES || rows + rowsOf(run) + reserve > room.maxRows) break
+    if (shown.length === MAX_ENTRIES || rows + rowsOf(run) + reserve > maxRows) break
     shown.push(run)
     rows += rowsOf(run)
   }
@@ -98,8 +101,12 @@ export const bandView = (
     ]
   }
 
+  // The title sits on the frame's top row, over the border, taking no row.
   return (
-    <Box flexDirection="column" width={room.bodyColumns}>
+    <Box key="subagents" flexDirection="column" width={room.bodyColumns} borderStyle="round" borderDimColor paddingX={1}>
+      <Box key="title" position="absolute" top={-1} left={1}>
+        <Text bold> Subagents </Text>
+      </Box>
       {shown.map(entry)}
       {more > 0 ? <Text dimColor>+{more} more</Text> : null}
     </Box>

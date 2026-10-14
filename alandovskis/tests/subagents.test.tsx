@@ -85,6 +85,21 @@ test('a running subagent shows its model, task, time, calls and latest call', as
   }
 })
 
+test('the band is framed by a border with its title on it', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await spawn($, 'Explore', 'Find callers')
+
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band() })
+    expect((await ui.find({ key: 'subagents' }))?.props).toMatchObject({ borderStyle: 'round', width: 100 })
+    const title = await ui.find({ key: 'title' })
+    expect(title?.props).toMatchObject({ position: 'absolute', top: -1 })
+    expect(title?.text.trim()).toBe('Subagents')
+  }
+})
+
 test('a finished subagent stays for 30 seconds with its outcome', async ($, on) => {
   const clock = mock.clock(on, { now: 0 })
   engine(on)
@@ -128,9 +143,10 @@ test('running subagents come first, and the band keeps to its room', async ($, o
     expect(lines).toHaveLength(7)
   }
 
-  // Given three rows, the band draws two entries and the count of the rest.
+  // Given five rows, the frame takes two, and the band draws two entries and
+  // the count of the rest.
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface, 3)).toEqual([
+    expect(await bandLines($, surface, 5)).toEqual([
       ' claude-haiku-5-5  ⇢ Explore task 2 7s · 0 calls',
       ' claude-haiku-5-5  ⇢ Explore task 3 6s · 0 calls',
       '+6 more',

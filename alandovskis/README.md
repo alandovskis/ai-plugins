@@ -50,12 +50,14 @@ starts when the plugin loads, empties on `/clear` and `/resume`, and keeps the l
 name is cut to 48 characters and the detail to 120. It only observes: it never changes or blocks a prompt or a tool
 call.
 
-**Subagent band:** while subagents run, a band above the prompt shows what each one is doing:
+**Subagent band:** while subagents run, a framed band titled "Subagents" above the prompt shows what each one is doing:
 
 ```
-claude-haiku-5-5 ⇢ Explore Find callers of parse() 12s · 7 calls
-   … Grep parse\(
-claude-sonnet-5-5 ✓ Plan Design the lexer split 31s · 9 calls
+╭─ Subagents ──────────────────────────────────────────────────────╮
+│ claude-haiku-5-5 ⇢ Explore Find callers of parse() 12s · 7 calls │
+│    … Grep parse\(                                                │
+│ claude-sonnet-5-5 ✓ Plan Design the lexer split 31s · 9 calls    │
+╰──────────────────────────────────────────────────────────────────╯
 ```
 
 - Each line starts with the model the subagent runs on, as a badge on a coloured background.
