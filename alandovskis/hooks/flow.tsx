@@ -30,11 +30,16 @@ export const changed = (list: readonly FlowNode[], id: string, change: (one: Flo
 const linked = (one: FlowNode, agentId: string): FlowNode =>
   (one.spawnedAgentIds ?? []).includes(agentId) ? one : { ...one, spawnedAgentIds: [...(one.spawnedAgentIds ?? []), agentId] }
 
+// An Agent call's row stands for its one subagent, so it shows that one's model.
+const linkedAgent = (one: FlowNode, spawn: Spawn): FlowNode => ({ ...linked(one, spawn.agentId), model: spawn.model })
+
 export interface Spawn {
   /** The call that started the subagent: an Agent call, or a Workflow call. */
   toolUseId: string
   agentId: string
   label: string
+  /** The model the subagent runs on. */
+  model: string
   task: string
 }
 
@@ -45,7 +50,7 @@ export interface Spawn {
 export const withSpawn = (list: readonly FlowNode[], spawn: Spawn): FlowNode[] => {
   const parent = list.find(one => one.id === spawn.toolUseId)
   if (parent === undefined) return [...list]
-  if (parent.kind === 'agent') return list.map(one => (one === parent ? linked(one, spawn.agentId) : one))
+  if (parent.kind === 'agent') return list.map(one => (one === parent ? linkedAgent(one, spawn) : one))
 
   const run = `run:${spawn.toolUseId}`
   const agentRow: FlowNode = {
@@ -56,6 +61,7 @@ export const withSpawn = (list: readonly FlowNode[], spawn: Spawn): FlowNode[] =
     status: 'running',
     agentId: run,
     spawnedAgentIds: [spawn.agentId],
+    model: spawn.model,
   }
 
   return appended(
@@ -111,7 +117,8 @@ export const flowView = ({ Box, Text }: Table, list: readonly FlowNode[], bodyCo
       <Text wrap="truncate-end">
         <Text dimColor>{'│ '.repeat(depth)}├ </Text>
         <Text color={mark.color}>{mark.glyph} </Text>
-        <Text bold={one.kind === 'agent'}>{one.label}</Text> <Text dimColor>{one.detail}</Text>
+        <Text bold={one.kind === 'agent'}>{one.label}</Text>
+        {one.model === undefined ? null : <Text dimColor> ({one.model})</Text>} <Text dimColor>{one.detail}</Text>
       </Text>
     )
   }

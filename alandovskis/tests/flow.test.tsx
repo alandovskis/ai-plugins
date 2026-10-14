@@ -65,7 +65,7 @@ test('a prompt, its tool calls, a subagent and the answer show in order', async 
 
     return { result: 'ok' as never, text: 'ok' }
   })
-  on('agent.spawn', () => ({ model: 'm', agentId: 'a1' }))
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'a1' }))
   on('turn.complete', () => ({ text: 'All done.\nMore lines.' }))
 
   await $.prompt.submit({ text: 'Fix the parser\nplease', wait: false, origin: { kind: 'composer' } })
@@ -85,7 +85,7 @@ test('a prompt, its tool calls, a subagent and the answer show in order', async 
       '├ ⊘ Bash rm -rf /',
       '├ ✗ Write out.txt',
       '├ ✗ Edit broken.ts',
-      '├ ✓ ⇢ Explore Find callers',
+      '├ ✓ ⇢ Explore (claude-haiku-5-5) Find callers',
       '│ ├ ✓ Read src/lexer.ts',
       '└ ◆ Claude 4.2s · All done.',
     ])
@@ -99,7 +99,7 @@ test('parallel subagents keep their own calls', async ($, on) => {
 
     return { result: 'ok' as never, text: 'ok' }
   })
-  on('agent.spawn', () => ({ model: 'm', agentId: `a${++next}` }))
+  on('agent.spawn', () => (++next, { model: next === 1 ? 'claude-haiku-5-5' : 'claude-sonnet-5-5', agentId: `a${next}` }))
 
   for (const [id, type] of [['tu-1', 'Explore'], ['tu-2', 'Plan']] as const) {
     await call($, { tool: 'Agent', subagent_type: type, description: type, prompt: 'x', tool_use_id: id })
@@ -110,10 +110,10 @@ test('parallel subagents keep their own calls', async ($, on) => {
 
   for (const surface of SURFACES) {
     expect(await flowLines($, surface)).toEqual([
-      '├ ✓ ⇢ Explore Explore',
+      '├ ✓ ⇢ Explore (claude-haiku-5-5) Explore',
       '│ ├ ✓ Read one.ts',
       '│ ├ ✓ Read three.ts',
-      '├ ✓ ⇢ Plan Plan',
+      '├ ✓ ⇢ Plan (claude-sonnet-5-5) Plan',
       '│ ├ ✓ Read two.ts',
     ])
   }
@@ -129,7 +129,7 @@ test("a workflow's agents all draw under its call", async ($, on) => {
 
     return { result: 'ok' as never, text: 'ok' }
   })
-  on('agent.spawn', () => ({ model: 'm', agentId: `w${++next}` }))
+  on('agent.spawn', () => (++next, { model: next === 1 ? 'claude-haiku-5-5' : 'claude-sonnet-5-5', agentId: `w${next}` }))
   on('turn.complete', () => ({ text: '' }))
 
   await call($, { tool: 'Workflow', description: 'Review', tool_use_id: 'tu-wf' })
@@ -140,9 +140,9 @@ test("a workflow's agents all draw under its call", async ($, on) => {
   for (const surface of SURFACES) {
     expect(await flowLines($, surface)).toEqual([
       '├ ✓ Workflow Review',
-      '│ ├ ✓ ⇢ Explore x',
+      '│ ├ ✓ ⇢ Explore (claude-haiku-5-5) x',
       '│ │ ├ ✓ Read two.ts',
-      '│ ├ … ⇢ Explore x',
+      '│ ├ … ⇢ Explore (claude-sonnet-5-5) x',
       '│ │ ├ ✓ Read one.ts',
     ])
   }
@@ -155,7 +155,7 @@ test("a subagent's calls stay nested once its Agent row is trimmed", async ($, o
 
     return { result: 'ok' as never, text: 'ok' }
   })
-  on('agent.spawn', () => ({ model: 'm', agentId: 'a1' }))
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: 'a1' }))
 
   await call($, { tool: 'Agent', subagent_type: 'Explore', description: 'Find', prompt: 'x', tool_use_id: 'tu-agent' })
   for (let n = 0; n < 400; n++) {

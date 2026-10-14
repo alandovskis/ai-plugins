@@ -31,7 +31,7 @@ drawing live in `hooks/flow.tsx` and `hooks/subagents.tsx`; the state contract i
 ● You Fix the parser
 ├ ✓ Read src/parser.ts
 ├ ✗ Bash rm -rf /
-├ ✓ ⇢ Explore Find callers
+├ ✓ ⇢ Explore (claude-haiku-5-5) Find callers
 │ ├ ✓ Read src/lexer.ts
 └ ◆ Claude 4.2s · All done.
 ```
@@ -39,8 +39,8 @@ drawing live in `hooks/flow.tsx` and `hooks/subagents.tsx`; the state contract i
 - `●` your prompt (its first line).
 - `├` a tool call with its main argument and status: `…` running, `✓` done, `✗` failed or refused, `⊘` refused
   by another plugin's hook. A call you or a settings hook refuse reaches the sidebar as a failed call, so it shows `✗`.
-- `⇢` a subagent; its own tool calls are drawn under it, even when several subagents run at once. Each of a
-  workflow's agents gets a `⇢` row of its own under its `Workflow` call.
+- `⇢` a subagent, with the model it runs on; its own tool calls are drawn under it, even when several subagents run at
+  once. Each of a workflow's agents gets a `⇢` row of its own under its `Workflow` call.
 - `└ ◆` Claude's answer: how long the turn took and its first line. An interrupted or failed turn shows `└ ✗` and
   the reason (`aborted`, `error`, `refusal` with its explanation).
 
@@ -52,13 +52,13 @@ call.
 **Subagent band:** while subagents run, a band above the prompt shows what each one is doing:
 
 ```
-⇢ Explore Find callers of parse() 12s · 7 calls
+⇢ Explore (claude-haiku-5-5) Find callers of parse() 12s · 7 calls
    … Grep parse\(
-✓ Plan Design the lexer split 31s · 9 calls
+✓ Plan (claude-sonnet-5-5) Design the lexer split 31s · 9 calls
 ```
 
-- `⇢` a running subagent: its type (a workflow agent's name), its task, how long it has run and its tool calls so far,
-  with its latest call under it (`…` running, `✓`, `✗`, `⊘`).
+- `⇢` a running subagent: its type (a workflow agent's name), the model it runs on, its task, how long it has run and
+  its tool calls so far, with its latest call under it (`…` running, `✓`, `✗`, `⊘`).
 - `✓` or `✗` a finished subagent, with its total time; it stays for 30 seconds, then leaves the band.
 - Running subagents come first. The band shows at most six, as many as its rows allow, and counts the rest
   (`+2 more`). It draws nothing while no subagent has run for 30 seconds, and empties on `/clear` and `/resume`.

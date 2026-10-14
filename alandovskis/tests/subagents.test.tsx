@@ -41,8 +41,11 @@ const spawn = ($: Engine, subagentType: string, description: string) =>
 const finish = ($: Engine, agentId: string, reason: 'answer' | 'error' = 'answer') =>
   $.turn.complete({ answer: '', durationMs: 0, isAborted: false, turnId: `turn-${agentId}`, reason, agentId })
 
+// What each subagent type runs on, as the engine resolves it.
+const MODELS: Record<string, string> = { Explore: 'claude-haiku-5-5', Plan: 'claude-sonnet-5-5' }
+
 // Answers the engine's side for a session whose subagents are spawned in order
-// as a1, a2, ...: every tool call succeeds and every turn ends, the store is
+// as a1, a2, ..., on their type's model: every tool call succeeds and every turn ends, the store is
 // in memory, and beneath the band the engine draws an empty one.
 const engine = (on: On) => {
   mock.store(on)
@@ -54,7 +57,7 @@ const engine = (on: On) => {
     return <Box />
   })
   let next = 0
-  on('agent.spawn', () => ({ model: 'm', agentId: `a${++next}` }))
+  on('agent.spawn', (_$, e) => ({ model: MODELS[e.subagentType] ?? 'claude-opus-5-5', agentId: `a${++next}` }))
   on('tool.call', () => ({ result: 'ok' as never, text: 'ok' }))
   on('turn.complete', () => ({ text: '' }))
 }
@@ -66,7 +69,7 @@ test('the band draws nothing while no subagent has run', async ($, on) => {
   }
 })
 
-test('a running subagent shows its task, time, calls and latest call', async ($, on) => {
+test('a running subagent shows its model, task, time, calls and latest call', async ($, on) => {
   const clock = mock.clock(on, { now: 0 })
   engine(on)
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
@@ -78,7 +81,7 @@ test('a running subagent shows its task, time, calls and latest call', async ($,
   await clock.advance(7_000)
 
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface)).toEqual(['⇢ Explore Find callers of parse() 12s · 2 calls', '✓ Grep parse\\('])
+    expect(await bandLines($, surface)).toEqual(['⇢ Explore (claude-haiku-5-5) Find callers of parse() 12s · 2 calls', '✓ Grep parse\\('])
   }
 })
 
@@ -96,8 +99,8 @@ test('a finished subagent stays for 30 seconds with its outcome', async ($, on) 
 
   for (const surface of SURFACES) {
     expect(await bandLines($, surface)).toEqual([
-      '✓ Plan Design the lexer split 31s · 1 call',
-      '✗ Explore Find callers 31s · 0 calls',
+      '✓ Plan (claude-sonnet-5-5) Design the lexer split 31s · 1 call',
+      '✗ Explore (claude-haiku-5-5) Find callers 31s · 0 calls',
     ])
   }
 
@@ -120,7 +123,7 @@ test('running subagents come first, and the band keeps to its room', async ($, o
 
   for (const surface of SURFACES) {
     const lines = await bandLines($, surface)
-    expect(lines.slice(0, 6)).toEqual([2, 3, 4, 5, 6, 7].map(n => `⇢ Explore task ${n} ${9 - n}s · 0 calls`))
+    expect(lines.slice(0, 6)).toEqual([2, 3, 4, 5, 6, 7].map(n => `⇢ Explore (claude-haiku-5-5) task ${n} ${9 - n}s · 0 calls`))
     expect(lines.at(-1)).toBe('+2 more')
     expect(lines).toHaveLength(7)
   }
@@ -128,8 +131,8 @@ test('running subagents come first, and the band keeps to its room', async ($, o
   // Given three rows, the band draws two entries and the count of the rest.
   for (const surface of SURFACES) {
     expect(await bandLines($, surface, 3)).toEqual([
-      '⇢ Explore task 2 7s · 0 calls',
-      '⇢ Explore task 3 6s · 0 calls',
+      '⇢ Explore (claude-haiku-5-5) task 2 7s · 0 calls',
+      '⇢ Explore (claude-haiku-5-5) task 3 6s · 0 calls',
       '+6 more',
     ])
   }
@@ -156,7 +159,7 @@ test('/subagents hides the band, and shows it again', async ($, on) => {
 
   expect(await toggle()).toMatchObject({ text: 'Subagent band shown.' })
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface)).toEqual(['⇢ Explore Find callers 0s · 0 calls'])
+    expect(await bandLines($, surface)).toEqual(['⇢ Explore (claude-haiku-5-5) Find callers 0s · 0 calls'])
   }
 })
 

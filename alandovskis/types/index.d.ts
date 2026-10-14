@@ -11,6 +11,8 @@ export interface FlowNode {
   agentId?: string
   /** On the row of an Agent or Workflow call: the subagents it started. */
   spawnedAgentIds?: string[]
+  /** On a subagent's row: the model it runs on. */
+  model?: string
 }
 
 export type RunStatus = 'running' | 'done' | 'error'
@@ -28,6 +30,8 @@ export interface SubagentRun {
   agentId: string
   /** Its type, or its name for a workflow agent. */
   label: string
+  /** The model it runs on. */
+  model: string
   task: string
   status: RunStatus
   /** Milliseconds since the epoch, on the engine's clock. */

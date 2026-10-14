@@ -173,11 +173,12 @@ export const register: Register = on => {
     if (agentId === undefined) return spawned
 
     const label = e.name ?? e.subagentType
+    const model = clip(spawned.model, LABEL_MAX)
     const task = firstLine(e.description)
     const linkFlow = async () => {
       if (e.tool_use_id === '') return
       await rowWrites.get(e.tool_use_id)
-      await update($, nodes, list => withSpawn(list, { toolUseId: e.tool_use_id, agentId, label, task }))
+      await update($, nodes, list => withSpawn(list, { toolUseId: e.tool_use_id, agentId, label, model, task }))
     }
     const startRun = async () => {
       const at = await $.clock.now()
@@ -185,6 +186,7 @@ export const register: Register = on => {
         started(list, {
           agentId,
           label: clip(label, LABEL_MAX),
+          model,
           task: clip(task, TEXT_MAX),
           status: 'running',
           startedAt: at,
