@@ -1,6 +1,6 @@
 ---
 description: "An existing draft is reviewed through clarity, conciseness and consistency, by lens subagents."
-tags: [design-doc]
+tags: [review-design-doc]
 max_turns: 25
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
