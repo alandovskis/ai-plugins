@@ -86,7 +86,7 @@ test('a prompt, its tool calls, a subagent and the answer show in order', async 
       '├ ⊘ Bash rm -rf /',
       '├ ✗ Write out.txt',
       '├ ✗ Edit broken.ts',
-      '├ ✓ ⇢ Explore (haiku-5-5) Find callers',
+      '├ ✓ ⇢ Explore (Haiku 5.5) Find callers',
       '│ ├ ✓ Read src/lexer.ts',
       '└ ◆ Claude 4.2s · All done.',
     ])
@@ -111,19 +111,19 @@ test('parallel subagents keep their own calls', async ($, on) => {
 
   for (const surface of SURFACES) {
     expect(await flowLines($, surface)).toEqual([
-      '├ ✓ ⇢ Explore (haiku-5-5) Explore',
+      '├ ✓ ⇢ Explore (Haiku 5.5) Explore',
       '│ ├ ✓ Read one.ts',
       '│ ├ ✓ Read three.ts',
-      '├ ✓ ⇢ Plan (sonnet-5-5) Plan',
+      '├ ✓ ⇢ Plan (Sonnet 5.5) Plan',
       '│ ├ ✓ Read two.ts',
     ])
     // Each model in its family's colour, as in the band.
     const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...PANE })
-    const models = (await ui.findAll({ type: 'Text', text: /^ \(\S+-5-5\)$/ })).map(found => [found.text, found.props.color])
+    const models = (await ui.findAll({ type: 'Text', text: /^ \(\S+ 5\.5\)$/ })).map(found => [found.text, found.props.color])
     await ui.unmount()
     expect(models).toEqual([
-      [' (haiku-5-5)', 'merged'],
-      [' (sonnet-5-5)', 'suggestion'],
+      [' (Haiku 5.5)', 'merged'],
+      [' (Sonnet 5.5)', 'suggestion'],
     ])
   }
 })
@@ -149,9 +149,9 @@ test("a workflow's agents all draw under its call", async ($, on) => {
   for (const surface of SURFACES) {
     expect(await flowLines($, surface)).toEqual([
       '├ ✓ Workflow Review',
-      '│ ├ ✓ ⇢ Explore (haiku-5-5) x',
+      '│ ├ ✓ ⇢ Explore (Haiku 5.5) x',
       '│ │ ├ ✓ Read two.ts',
-      '│ ├ … ⇢ Explore (sonnet-5-5) x',
+      '│ ├ … ⇢ Explore (Sonnet 5.5) x',
       '│ │ ├ ✓ Read one.ts',
     ])
   }

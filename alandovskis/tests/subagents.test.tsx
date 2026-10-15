@@ -139,7 +139,7 @@ const HOUR = 60 * MINUTE
 // Answers the engine's side for a session whose subagents are spawned in order
 // as a1, a2, ..., on their type's model: every tool call succeeds and every turn ends, the store is
 // in memory, and beneath the band the engine draws an empty one. Unless a test
-// says otherwise, the session runs on opus-5-5 with a window of 1M, has no
+// says otherwise, the session runs on Opus 5.5 with a window of 1M, has no
 // figures yet, and works outside git.
 const engine = (on: On, repos: Repos = {}, where = { cwd: '/' }, session: Session = { model: 'claude-opus-5-5', window: 1_000_000 }) => {
   mock.store(on)
@@ -197,7 +197,7 @@ test('a running subagent shows its model, task, time, calls and latest call', as
   await clock.advance(7_000)
 
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface)).toEqual([' haiku-5-5  ⇢ Explore 12s · 2 calls', 'Find callers of parse()', '✓ Grep parse\\('])
+    expect(await bandLines($, surface)).toEqual([' Haiku 5.5  ⇢ Explore 12s · 2 calls', 'Find callers of parse()', '✓ Grep parse\\('])
   }
 })
 
@@ -216,7 +216,7 @@ test('the band is framed by a border with its title on it', async ($, on) => {
   }
 })
 
-test('each model family has a badge colour of its own, and no claude- prefix', async ($, on) => {
+test('each model family has a badge colour of its own, and is named as Anthropic writes it', async ($, on) => {
   mock.clock(on, { now: 0 })
   engine(on)
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
@@ -227,10 +227,10 @@ test('each model family has a badge colour of its own, and no claude- prefix', a
   for (const surface of SURFACES) {
     const badges = (await boxElements($, surface, 'subagents', 16)).filter(one => one.props?.color === 'inverseText')
     expect(badges.map(one => [textOf(one), one.props?.backgroundColor])).toEqual([
-      [' opus-5-5 ', 'claude'],
-      [' sonnet-5-5 ', 'suggestion'],
-      [' haiku-5-5 ', 'merged'],
-      [' fable-5-1 ', 'planMode'],
+      [' Opus 5.5 ', 'claude'],
+      [' Sonnet 5.5 ', 'suggestion'],
+      [' Haiku 5.5 ', 'merged'],
+      [' Fable 5.1 ', 'planMode'],
       [' llama-4 ', 'inactive'],
     ])
   }
@@ -250,9 +250,9 @@ test('a finished subagent stays for 30 seconds with its outcome', async ($, on) 
 
   for (const surface of SURFACES) {
     expect(await bandLines($, surface)).toEqual([
-      ' sonnet-5-5  ✓ Plan 31s · 1 call',
+      ' Sonnet 5.5  ✓ Plan 31s · 1 call',
       'Design the lexer split',
-      ' haiku-5-5  ✗ Explore 31s · 0 calls',
+      ' Haiku 5.5  ✗ Explore 31s · 0 calls',
       'Find callers',
     ])
   }
@@ -277,7 +277,7 @@ test('running subagents come first, and the band keeps to its room', async ($, o
   for (const surface of SURFACES) {
     // The session panel over the band takes three rows of the band's 19.
     const lines = await bandLines($, surface, 19)
-    expect(lines.slice(0, 12)).toEqual([2, 3, 4, 5, 6, 7].flatMap(n => [` haiku-5-5  ⇢ Explore ${9 - n}s · 0 calls`, `task ${n}`]))
+    expect(lines.slice(0, 12)).toEqual([2, 3, 4, 5, 6, 7].flatMap(n => [` Haiku 5.5  ⇢ Explore ${9 - n}s · 0 calls`, `task ${n}`]))
     expect(lines.at(-1)).toBe('+2 more')
     expect(lines).toHaveLength(13)
   }
@@ -286,9 +286,9 @@ test('running subagents come first, and the band keeps to its room', async ($, o
   // band draws two entries of two rows each and the count of the rest.
   for (const surface of SURFACES) {
     expect(await bandLines($, surface, 10)).toEqual([
-      ' haiku-5-5  ⇢ Explore 7s · 0 calls',
+      ' Haiku 5.5  ⇢ Explore 7s · 0 calls',
       'task 2',
-      ' haiku-5-5  ⇢ Explore 6s · 0 calls',
+      ' Haiku 5.5  ⇢ Explore 6s · 0 calls',
       'task 3',
       '+6 more',
     ])
@@ -316,7 +316,7 @@ test('/subagents hides the band, and shows it again', async ($, on) => {
 
   expect(await toggle()).toMatchObject({ text: 'Subagent band shown.' })
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface)).toEqual([' haiku-5-5  ⇢ Explore 0s · 0 calls', 'Find callers'])
+    expect(await bandLines($, surface)).toEqual([' Haiku 5.5  ⇢ Explore 0s · 0 calls', 'Find callers'])
   }
 })
 
@@ -382,10 +382,10 @@ test('a subagent shows its worktree and branch where they differ from the sessio
 
   for (const surface of SURFACES) {
     expect(await bandLines($, surface)).toEqual([
-      ' haiku-5-5  ⇢ Explore 0s · 1 call',
+      ' Haiku 5.5  ⇢ Explore 0s · 1 call',
       'Find callers',
       '✓ Read a.ts',
-      ' sonnet-5-5  ⇢ Plan agent-a2 ⎇ worktree-agent-a2 0s · 2 calls',
+      ' Sonnet 5.5  ⇢ Plan agent-a2 ⎇ worktree-agent-a2 0s · 2 calls',
       'Split the lexer',
       '✓ Read c.ts',
     ])
@@ -415,13 +415,13 @@ test("a subagent's first line shows how full its context is, as a bar coloured b
 
   // Until its first response there is nothing to show.
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface)).toEqual([' haiku-5-5  ⇢ Explore 0s · 0 calls', 'Find callers'])
+    expect(await bandLines($, surface)).toEqual([' Haiku 5.5  ⇢ Explore 0s · 0 calls', 'Find callers'])
   }
 
   // The window's input side as the last response reported it: 120K of 1M.
   await step($, 'a1', 120_000)
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface)).toEqual([' haiku-5-5  ⇢ Explore █░░░░░░░░░ 12% 0s · 0 calls', 'Find callers'])
+    expect(await bandLines($, surface)).toEqual([' Haiku 5.5  ⇢ Explore █░░░░░░░░░ 12% 0s · 0 calls', 'Find callers'])
   }
 
   // Half full and over is a warning; four fifths and over, an error.
@@ -454,9 +454,9 @@ test("the main conversation's responses leave the bars alone", async ($, on) => 
 
   for (const surface of SURFACES) {
     expect(await bandLines($, surface)).toEqual([
-      ' haiku-5-5  ⇢ Explore 0s · 0 calls',
+      ' Haiku 5.5  ⇢ Explore 0s · 0 calls',
       'Find callers',
-      ' sonnet-5-5  ⇢ Plan ███░░░░░░░ 30% 0s · 0 calls',
+      ' Sonnet 5.5  ⇢ Plan ███░░░░░░░ 30% 0s · 0 calls',
       'Split the lexer',
     ])
   }
@@ -466,7 +466,7 @@ test("a subagent on the session's model is measured against the session's window
   mock.clock(on, { now: 0 })
   engine(on, {}, { cwd: '/' }, { model: 'claude-opus-5-5', window: 200_000 })
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
-  // On opus-5-5, the session's model, whose window the session gives as 200K;
+  // On Opus 5.5, the session's model, whose window the session gives as 200K;
   // on a 200K model of an older generation; and on a current one, 1M.
   await spawn($, 'general-purpose', 'Review the diff')
   await spawn($, 'Old', 'Count the files')
@@ -475,11 +475,11 @@ test("a subagent on the session's model is measured against the session's window
 
   for (const surface of SURFACES) {
     expect(await bandLines($, surface)).toEqual([
-      ' opus-5-5  ⇢ general-purpose █████░░░░░ 50% 0s · 0 calls',
+      ' Opus 5.5  ⇢ general-purpose █████░░░░░ 50% 0s · 0 calls',
       'Review the diff',
-      ' haiku-4-5  ⇢ Old █████░░░░░ 50% 0s · 0 calls',
+      ' Haiku 4.5  ⇢ Old █████░░░░░ 50% 0s · 0 calls',
       'Count the files',
-      ' haiku-5-5  ⇢ Explore █░░░░░░░░░ 10% 0s · 0 calls',
+      ' Haiku 5.5  ⇢ Explore █░░░░░░░░░ 10% 0s · 0 calls',
       'Find callers',
     ])
   }
@@ -507,7 +507,7 @@ test('the session panel shows the model, how full the context is and the rate li
     expect((await ui.find({ key: 'session' }))?.props).toMatchObject({ borderStyle: 'round', width: 100 })
     expect((await ui.find({ key: 'session-title' }))?.text.trim()).toBe('Session')
     expect(await panelLines($, surface)).toEqual([
-      ' opus-5-5   Context ██░░░░░░░░ 18%  5h ██████░░░░ 55% ↻ 2h 10m  Week ████████░░ 81% ↻ 3d 4h',
+      ' Opus 5.5   Context ██░░░░░░░░ 18%  5h ██████░░░░ 55% ↻ 2h 10m  Week ████████░░ 81% ↻ 3d 4h',
     ])
     expect(gaugeParts(await boxElements($, surface, 'session'))).toEqual([
       ['██', 'success'],
@@ -533,7 +533,7 @@ test('the session panel leaves out what it has no figure for, and follows a chan
 
   // Before the first response, and off a subscription: the model alone.
   for (const surface of SURFACES) {
-    expect(await panelLines($, surface)).toEqual([' opus-5-5 '])
+    expect(await panelLines($, surface)).toEqual([' Opus 5.5 '])
   }
 
   // A /model switch and a response's figures, read on the next tick.
@@ -542,7 +542,7 @@ test('the session panel leaves out what it has no figure for, and follows a chan
   session.rateLimits = [{ kind: 'seven_day', percentUsed: 100 }]
   await clock.advance(1_000)
   for (const surface of SURFACES) {
-    expect(await panelLines($, surface)).toEqual([' sonnet-5-5   Context ░░░░░░░░░░ 3%  Week ██████████ 100%'])
+    expect(await panelLines($, surface)).toEqual([' Sonnet 5.5   Context ░░░░░░░░░░ 3%  Week ██████████ 100%'])
   }
 })
 
@@ -561,7 +561,7 @@ test('/subagents hides the band but not the session panel', async ($, on) => {
   })
   for (const surface of SURFACES) {
     expect(await bandLines($, surface)).toEqual([])
-    expect(await panelLines($, surface)).toEqual([' opus-5-5 '])
+    expect(await panelLines($, surface)).toEqual([' Opus 5.5 '])
   }
 })
 

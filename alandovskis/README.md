@@ -32,7 +32,7 @@ drawing live in `hooks/flow.tsx` and `hooks/subagents.tsx`; the state contract i
 ● You Fix the parser
 ├ ✓ Read src/parser.ts
 ├ ✗ Bash rm -rf /
-├ ✓ ⇢ Explore (haiku-5-5) Find callers
+├ ✓ ⇢ Explore (Haiku 5.5) Find callers
 │ ├ ✓ Read src/lexer.ts
 └ ◆ Claude 4.2s · All done.
 ```
@@ -55,7 +55,7 @@ band, and shows the session's figures as the status line has them:
 
 ```
 ╭─ Session ─────────────────────────────────────────────────────────────────────────────────╮
-│ opus-5-5  Context ██░░░░░░░░ 18%  5h ██████░░░░ 55% ↻ 2h 10m  Week ████████░░ 81% ↻ 3d 4h │
+│ Opus 5.5  Context ██░░░░░░░░ 18%  5h ██████░░░░ 55% ↻ 2h 10m  Week ████████░░ 81% ↻ 3d 4h │
 ╰───────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
@@ -74,10 +74,10 @@ one is doing:
 
 ```
 ╭─ Subagents · plugins ⎇ main ──────────────────────────────────────────────────────────────╮
-│ haiku-5-5 ⇢ Explore ██░░░░░░░░ 18% 12s · 7 calls                                          │
+│ Haiku 5.5 ⇢ Explore ██░░░░░░░░ 18% 12s · 7 calls                                          │
 │    Find callers of parse()                                                                │
 │    … Grep parse\(                                                                         │
-│ sonnet-5-5 ✓ Plan ██████░░░░ 57% agent-a2 ⎇ worktree-a2 8s · 9 calls                      │
+│ Sonnet 5.5 ✓ Plan ██████░░░░ 57% agent-a2 ⎇ worktree-a2 8s · 9 calls                      │
 │    Design the lexer split                                                                 │
 ╰───────────────────────────────────────────────────────────────────────────────────────────╯
 ```

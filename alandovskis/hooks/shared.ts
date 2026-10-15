@@ -25,8 +25,27 @@ const MODEL_COLORS = [
 export const modelColor = (model: string): Color =>
   MODEL_COLORS.find(({ family }) => model.includes(family))?.color ?? 'inactive'
 
-// A model is named without the `claude-` every model id starts with.
-export const modelName = (model: string) => model.replace(/^claude-/, '')
+// A Claude model's id, family first (`claude-opus-4-5-20251101`) or, before
+// Claude 4, version first (`claude-3-5-sonnet-20241022`); a dated snapshot and
+// the engine's `[1m]` mark for a 1M window may follow.
+const FAMILY_FIRST = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?(\[1m\])?$/
+const VERSION_FIRST = /^claude-(\d+)(?:-(\d{1,2}))?-([a-z]+)(?:-\d{8})?(\[1m\])?$/
+
+const titled = (family: string) => `${family[0].toUpperCase()}${family.slice(1)}`
+
+// A Claude model is named as Anthropic writes it, `Opus 5.5`; any other id
+// keeps its own, less the `claude-` it may start with.
+export const modelName = (model: string) => {
+  const name = (family: string, major: string, minor: string | undefined, wide: string | undefined) =>
+    `${titled(family)} ${major}${minor === undefined ? '' : `.${minor}`}${wide === undefined ? '' : ' (1M)'}`
+
+  const familyFirst = FAMILY_FIRST.exec(model)
+  if (familyFirst !== null) return name(familyFirst[1]!, familyFirst[2]!, familyFirst[3], familyFirst[4])
+  const versionFirst = VERSION_FIRST.exec(model)
+  if (versionFirst !== null) return name(versionFirst[3]!, versionFirst[1]!, versionFirst[2], versionFirst[4])
+
+  return model.replace(/^claude-/, '')
+}
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
