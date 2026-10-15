@@ -17,6 +17,13 @@ export interface FlowNode {
 
 export type RunStatus = 'running' | 'done' | 'error'
 
+/** Where a loop works: its git worktree's directory name and its branch. */
+export interface Place {
+  worktree: string
+  /** The branch checked out, or the commit's short hash when HEAD is detached. */
+  branch: string
+}
+
 /** A subagent's most recent tool call. */
 export interface SubagentCall {
   id: string
@@ -39,6 +46,8 @@ export interface SubagentRun {
   endedAt?: number
   calls: number
   latest?: SubagentCall
+  /** Where it works, read on its first tool call; absent until then, or outside git. */
+  place?: Place
 }
 
 declare module 'claude-code' {
@@ -49,6 +58,8 @@ declare module 'claude-code' {
       /** The engine's clock as of the band's last tick, for elapsed times. */
       subagentsNow: number
       subagentsHidden: boolean
+      /** Where the session works, for the band's title; null outside git. */
+      subagentsPlace: Place | null
     }
   }
 }

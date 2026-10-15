@@ -1,10 +1,10 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { FlowNode, FlowStatus, RunStatus, SubagentCall } from '../types'
+import type { FlowNode, FlowStatus, Place, RunStatus, SubagentCall } from '../types'
 import { appended, changed, flowView, seconds, withSpawn } from './flow'
 import { AGENT_TOOLS, clip, detailOf, firstLine, statusOf } from './shared'
-import { LABEL_MAX, TEXT_MAX, bandView, called, ended, isShown, settled, started } from './subagents'
+import { LABEL_MAX, TEXT_MAX, bandView, called, ended, isShown, placeOf, placed, settled, started } from './subagents'
 
 // Each event is hooked once here and fed to both features: the /flow sidebar
 // (flow.tsx) and the subagent band above the prompt (subagents.tsx). Every
@@ -23,10 +23,17 @@ const nodes = atom({ plugin: 'alandovskis', key: 'flowNodes' } as const, [])
 const runs = atom({ plugin: 'alandovskis', key: 'subagentRuns' } as const, [])
 const now = atom({ plugin: 'alandovskis', key: 'subagentsNow' } as const, 0)
 const isBandHidden = atom({ plugin: 'alandovskis', key: 'subagentsHidden' } as const, false)
+const place = atom({ plugin: 'alandovskis', key: 'subagentsPlace' } as const, null)
 
 // Where the person's choice to hide the band is kept across sessions.
 const BAND_HIDDEN_KEY = 'subagentsHidden'
 const TICK_MS = 1_000
+const GIT_TOP = ['git', 'rev-parse', '--show-toplevel']
+const GIT_BRANCH = ['git', 'branch', '--show-current']
+const GIT_HASH = ['git', 'rev-parse', '--short', 'HEAD']
+const GIT_TIMEOUT_MS = 5_000
+// The main loop's tools that can move the session to another branch or worktree.
+const PLACE_TOOLS = new Set(['Bash', 'EnterWorktree', 'ExitWorktree'])
 
 // Resolves whether a state write landed, logging one that did not to the debug
 // log, so a write left running beside a tool never rejects unhandled.
@@ -51,6 +58,40 @@ const changeNode = ($: EngineInterface, id: string, change: (one: FlowNode) => F
 // call's row, so the link to the subagent lands on a row that exists.
 const rowWrites = new Map<string, Promise<boolean>>()
 
+// The subagents whose place has been read, or is being read.
+const placeReads = new Set<string>()
+
+// Where `cwd` is in git: null outside a repository, or in one with no commit
+// on a detached HEAD.
+const readPlace = async ($: EngineInterface, cwd: string): Promise<Place | null> => {
+  const git = (argv: readonly string[]) => $.process.run(argv, { cwd, timeoutMs: GIT_TIMEOUT_MS })
+  const [top, branch] = await Promise.all([git(GIT_TOP), git(GIT_BRANCH)])
+  if (top.exitCode !== 0 || branch.exitCode !== 0) return null
+  if (branch.stdout.trim() !== '') return placeOf(top.stdout, branch.stdout)
+  const hash = await git(GIT_HASH)
+
+  return hash.exitCode === 0 ? placeOf(top.stdout, hash.stdout) : null
+}
+
+// Each takes the directory as the hook asked for it, so a hook's own read
+// failing fails only this work, never the hook.
+const readSessionPlace = async ($: EngineInterface, cwd: Promise<string> | string) => {
+  const found = await readPlace($, await cwd)
+  await update($, place, () => found)
+}
+
+const readRunPlace = async ($: EngineInterface, agentId: string, cwd: Promise<string>) => {
+  const where = await cwd
+  // A call made before its run is on the band leaves the read to a later one.
+  if (!(await read($, runs)).some(run => run.agentId === agentId)) {
+    placeReads.delete(agentId)
+
+    return
+  }
+  const found = await readPlace($, where)
+  if (found !== null) await update($, runs, list => placed(list, agentId, found))
+}
+
 // Moves the clock the band draws its times from, and drops finished runs
 // whose time is up; it writes only while the band has something to show.
 const tick = async ($: EngineInterface) => {
@@ -67,6 +108,7 @@ export const register: Register = on => {
     await $.command.register({ name: BAND_COMMAND, description: 'Hide or show the subagent band above the prompt' })
     const stored = await $.store.get(BAND_HIDDEN_KEY)
     await update($, isBandHidden, () => stored === true)
+    void landed($, "reading the session's place", readSessionPlace($, e.cwd))
     // Runs until the module reloads, which raises session.start again.
     $.clock.every(TICK_MS, () => {
       void landed($, 'a subagent band tick', tick($))
@@ -99,6 +141,7 @@ export const register: Register = on => {
     if (e.reason === 'clear' || e.reason === 'resume') {
       await update($, nodes, () => [])
       await update($, runs, () => [])
+      placeReads.clear()
     }
 
     return next(e)
@@ -124,6 +167,14 @@ export const register: Register = on => {
     const subagentType = isAgent && 'subagent_type' in e && typeof e.subagent_type === 'string' ? e.subagent_type : 'agent'
     const detail = detailOf(e)
     const call = `${e.tool} ${e.tool_use_id}`
+
+    // A subagent's place is read once, from its own directory: the hook's,
+    // asked for inside the hook. It is read while the tool runs.
+    let placing = Promise.resolve(false)
+    if (agentId !== undefined && !placeReads.has(agentId)) {
+      placeReads.add(agentId)
+      placing = landed($, `reading where subagent ${agentId} works`, readRunPlace($, agentId, $.session.cwd()))
+    }
 
     // Both are written while the tool runs, never holding it up.
     const added = landed($, `writing the flow row of ${call}`, addNode($, {
@@ -164,6 +215,10 @@ export const register: Register = on => {
       if (agentId !== undefined && (await counted)) {
         await landed($, `settling ${call} for the band`, update($, runs, list => settled(list, agentId, e.tool_use_id, status)))
       }
+      await placing
+      if (agentId === undefined && PLACE_TOOLS.has(e.tool) && (await read($, runs)).length > 0) {
+        await landed($, "rereading the session's place", readSessionPlace($, $.session.cwd()))
+      }
     }
   })
 
@@ -197,6 +252,10 @@ export const register: Register = on => {
     }
     await landed($, `linking subagent ${agentId} in the flow`, linkFlow())
     await landed($, `starting subagent ${agentId} in the band`, startRun())
+    // The session may have changed branch since the band last showed.
+    if (e.parentAgentId === undefined) {
+      await landed($, "rereading the session's place", readSessionPlace($, $.session.cwd()))
+    }
 
     return spawned
   })
@@ -236,7 +295,7 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isBandHidden))) return next(e)
-    const band = bandView($.ui.resolve(e), await read($, runs), await read($, now), e.props)
+    const band = bandView($.ui.resolve(e), await read($, runs), await read($, now), await read($, place), e.props)
 
     return band ?? next(e)
   })

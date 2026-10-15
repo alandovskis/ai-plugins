@@ -1,7 +1,7 @@
 import type { Color, Elements, RenderSurface } from 'claude-code'
 
-import type { FlowStatus, RunStatus, SubagentCall, SubagentRun } from '../types'
-import { MARKS, modelColor, modelName } from './shared'
+import type { FlowStatus, Place, RunStatus, SubagentCall, SubagentRun } from '../types'
+import { MARKS, clip, modelColor, modelName } from './shared'
 
 // The band above the prompt: what each subagent is doing, while it runs and
 // for a short while after. What is here is pure: how the runs change, and how
@@ -40,6 +40,20 @@ export const settled = (list: readonly SubagentRun[], agentId: string, callId: s
 export const ended = (list: readonly SubagentRun[], agentId: string, status: RunStatus, at: number) =>
   changed(list, agentId, run => (run.endedAt === undefined ? { ...run, status, endedAt: at } : run))
 
+export const placed = (list: readonly SubagentRun[], agentId: string, place: Place) =>
+  changed(list, agentId, run => ({ ...run, place }))
+
+// A place from git's answers: the worktree's top directory, absolute, and the
+// branch, or the short hash when HEAD is detached.
+export const placeOf = (top: string, branch: string): Place => ({
+  worktree: clip(top.trim().split(/[\\/]/).filter(part => part !== '').at(-1) ?? top.trim(), LABEL_MAX),
+  branch: clip(branch.trim(), LABEL_MAX),
+})
+
+const samePlace = (one: Place, other: Place) => one.worktree === other.worktree && one.branch === other.branch
+
+const placeText = ({ worktree, branch }: Place) => `${worktree} ⎇ ${branch}`
+
 const duration = (ms: number) => {
   const seconds = Math.max(0, Math.floor(ms / 1000))
 
@@ -54,11 +68,19 @@ const rowsOf = (run: SubagentRun) =>
 
 type Table = Pick<Elements[RenderSurface], 'Box' | 'Text'>
 
-// The band's tree, or undefined when it has nothing to show.
+const TITLE = 'Subagents'
+// The title's spaces either side, and the frame's corner, border and padding
+// either side of it.
+const TITLE_CHROME = 2 + 4
+
+// The band's tree, or undefined when it has nothing to show. `place` is the
+// session's: the title shows it, and an entry shows its own only where it
+// differs, as in a worktree of its own.
 export const bandView = (
   { Box, Text }: Table,
   runs: readonly SubagentRun[],
   at: number,
+  place: Place | null,
   room: { maxRows: number; bodyColumns: number },
 ) => {
   const visible = runs.filter(run => isShown(run, at))
@@ -85,11 +107,13 @@ export const bandView = (
     const mark = RUN_MARKS[run.status]
     const time = duration((run.endedAt ?? at) - run.startedAt)
     const latest = run.status === 'running' ? run.latest : undefined
+    const away = run.place !== undefined && (place === null || !samePlace(run.place, place)) ? run.place : undefined
 
     return [
       <Text wrap="truncate-end">
         <Text color="inverseText" backgroundColor={modelColor(run.model)}>{` ${modelName(run.model)} `}</Text> <Text color={mark.color}>{mark.glyph} </Text>
-        <Text bold>{run.label}</Text> <Text dimColor>{time} · {callCount(run.calls)}</Text>
+        <Text bold>{run.label}</Text>
+        {away === undefined ? null : <Text>{` ${placeText(away)}`}</Text>} <Text dimColor>{time} · {callCount(run.calls)}</Text>
       </Text>,
       run.task === '' ? null : (
         <Box paddingLeft={3}>
@@ -107,11 +131,19 @@ export const bandView = (
     ]
   }
 
-  // The title sits on the frame's top row, over the border, taking no row.
+  // The title sits on the frame's top row, over the border, taking no row; the
+  // session's place is cut to what the border leaves.
+  const titleRoom = Math.max(0, room.bodyColumns - TITLE_CHROME - TITLE.length)
+  const where = place === null || titleRoom === 0 ? '' : clip(` · ${placeText(place)}`, titleRoom)
+
   return (
     <Box key="subagents" flexDirection="column" width={room.bodyColumns} borderStyle="round" borderDimColor paddingX={1}>
       <Box key="title" position="absolute" top={-1} left={1}>
-        <Text bold> Subagents </Text>
+        <Text>
+          {' '}
+          <Text bold>{TITLE}</Text>
+          {where}{' '}
+        </Text>
       </Box>
       {shown.map(entry)}
       {more > 0 ? <Text dimColor>+{more} more</Text> : null}

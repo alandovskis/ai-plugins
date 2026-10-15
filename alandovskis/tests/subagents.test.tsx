@@ -49,11 +49,37 @@ const MODELS: Record<string, string> = {
   Local: 'llama-4',
 }
 
+// A git repository's worktrees, by directory: the branch each has checked
+// out, '' for a detached HEAD at `hash`.
+type Repos = Record<string, { branch: string; hash?: string }>
+
+// Answers git as it would in `repos`, and the directory a hook runs in as
+// `where.cwd`; a directory in no repo fails as git does.
+const git = (on: On, repos: Repos, where: { cwd: string }) => {
+  on('session.cwd', () => ({ value: where.cwd }))
+  on('process.run', (_$, e) => {
+    const repo = repos[e.init?.cwd ?? where.cwd]
+    const ran = (exitCode: number, stdout: string, stderr = '') => ({
+      value: { exitCode, stdout, stderr, isStdoutTruncated: false, isStderrTruncated: false },
+    })
+    const out = (stdout: string) => ran(0, `${stdout}\n`)
+    if (repo === undefined || e.argv[0] !== 'git') return ran(128, '', 'fatal: not a git repository')
+    const args = e.argv.slice(1).join(' ')
+    if (args === 'rev-parse --show-toplevel') return out(e.init?.cwd ?? where.cwd)
+    if (args === 'branch --show-current') return out(repo.branch)
+    if (args === 'rev-parse --short HEAD') return out(repo.hash ?? '0000000')
+
+    throw new Error(`unexpected git ${args}`)
+  })
+}
+
 // Answers the engine's side for a session whose subagents are spawned in order
 // as a1, a2, ..., on their type's model: every tool call succeeds and every turn ends, the store is
-// in memory, and beneath the band the engine draws an empty one.
-const engine = (on: On) => {
+// in memory, and beneath the band the engine draws an empty one. Unless a
+// test says otherwise, the session works outside git.
+const engine = (on: On, repos: Repos = {}, where = { cwd: '/' }) => {
   mock.store(on)
+  git(on, repos, where)
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
   on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
@@ -221,4 +247,77 @@ test('/clear empties the band', async ($, on) => {
   for (const surface of SURFACES) {
     expect(await bandLines($, surface)).toEqual([])
   }
+})
+
+const title = async ($: Engine, surface: (typeof SURFACES)[number], bodyColumns = 100) => {
+  const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band(), props: { ...band().props, bodyColumns } })
+
+  return (await ui.find({ key: 'title' }))?.text
+}
+
+test("the band's title shows the session's worktree and branch", async ($, on) => {
+  mock.clock(on, { now: 0 })
+  engine(on, { '/src/plugins': { branch: 'main' } }, { cwd: '/src/plugins' })
+  await $.session.start({ cwd: '/src/plugins', surface: 'terminal', isInteractive: true })
+  await spawn($, 'Explore', 'Find callers')
+
+  for (const surface of SURFACES) {
+    expect(await title($, surface)).toBe(' Subagents · plugins ⎇ main ')
+    // What the border leaves is 100 - 6 - 9 = 85 columns; at 30, 15.
+    expect(await title($, surface, 30)).toBe(' Subagents · plugins ⎇ m… ')
+  }
+})
+
+test('a detached HEAD shows as its short hash', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  engine(on, { '/src/plugins': { branch: '', hash: '594c359' } }, { cwd: '/src/plugins' })
+  await $.session.start({ cwd: '/src/plugins', surface: 'terminal', isInteractive: true })
+  await spawn($, 'Explore', 'Find callers')
+
+  for (const surface of SURFACES) {
+    expect(await title($, surface)).toBe(' Subagents · plugins ⎇ 594c359 ')
+  }
+})
+
+test('a subagent shows its worktree and branch where they differ from the session', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  const where = { cwd: '/src/plugins' }
+  const worktree = '/src/plugins/.claude/worktrees/agent-a2'
+  engine(on, { '/src/plugins': { branch: 'main' }, [worktree]: { branch: 'worktree-agent-a2' } }, where)
+  await $.session.start({ cwd: '/src/plugins', surface: 'terminal', isInteractive: true })
+
+  await spawn($, 'Explore', 'Find callers')
+  await spawn($, 'Plan', 'Split the lexer')
+  await call($, { tool: 'Read', file_path: 'a.ts', agentId: 'a1' })
+  where.cwd = worktree
+  await call($, { tool: 'Read', file_path: 'b.ts', agentId: 'a2' })
+  // Read once: a later call from elsewhere does not move it.
+  where.cwd = '/src/plugins'
+  await call($, { tool: 'Read', file_path: 'c.ts', agentId: 'a2' })
+
+  for (const surface of SURFACES) {
+    expect(await bandLines($, surface)).toEqual([
+      ' haiku-5-5  ⇢ Explore 0s · 1 call',
+      'Find callers',
+      '✓ Read a.ts',
+      ' sonnet-5-5  ⇢ Plan agent-a2 ⎇ worktree-agent-a2 0s · 2 calls',
+      'Split the lexer',
+      '✓ Read c.ts',
+    ])
+  }
+})
+
+test("a Bash call in the main loop rereads the session's branch", async ($, on) => {
+  mock.clock(on, { now: 0 })
+  const repos: Repos = { '/src/plugins': { branch: 'main' } }
+  engine(on, repos, { cwd: '/src/plugins' })
+  await $.session.start({ cwd: '/src/plugins', surface: 'terminal', isInteractive: true })
+  await spawn($, 'Explore', 'Find callers')
+  expect(await title($, 'terminal')).toBe(' Subagents · plugins ⎇ main ')
+
+  repos['/src/plugins'] = { branch: 'feature' }
+  await call($, { tool: 'Read', file_path: 'a.ts' })
+  expect(await title($, 'terminal')).toBe(' Subagents · plugins ⎇ main ')
+  await call($, { tool: 'Bash', command: 'git switch feature' })
+  expect(await title($, 'terminal')).toBe(' Subagents · plugins ⎇ feature ')
 })

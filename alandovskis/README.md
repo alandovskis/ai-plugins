@@ -53,19 +53,23 @@ call.
 **Subagent band:** while subagents run, a framed band titled "Subagents" above the prompt shows what each one is doing:
 
 ```
-╭─ Subagents ───────────────────────╮
-│ haiku-5-5 ⇢ Explore 12s · 7 calls │
-│    Find callers of parse()        │
-│    … Grep parse\(                 │
-│ sonnet-5-5 ✓ Plan 31s · 9 calls   │
-│    Design the lexer split         │
-╰───────────────────────────────────╯
+╭─ Subagents · plugins ⎇ main ───────────────────────────╮
+│ haiku-5-5 ⇢ Explore 12s · 7 calls                      │
+│    Find callers of parse()                             │
+│    … Grep parse\(                                      │
+│ sonnet-5-5 ✓ Plan agent-a2 ⎇ worktree-a2 31s · 9 calls │
+│    Design the lexer split                              │
+╰────────────────────────────────────────────────────────╯
 ```
 
+- The title shows the session's git worktree (its directory's name) and branch, or the commit's short hash on a
+  detached HEAD, and nothing outside git. It is read again as each subagent starts, and after the main conversation's
+  `Bash`, `EnterWorktree` and `ExitWorktree` calls while the band shows.
 - Each entry starts with the model the subagent runs on, without its `claude-` prefix, as a badge coloured by family
   (opus orange, sonnet blue, haiku purple, fable teal, any other grey), with its description on the line under it.
-- `⇢` a running subagent: its type (a workflow agent's name), how long it has run and its tool calls so far, with its
-  latest call under its description (`…` running, `✓`, `✗`, `⊘`).
+- `⇢` a running subagent: its type (a workflow agent's name); its own worktree and branch where they differ from the
+  session's, as in an isolated worktree (read on its first tool call); how long it has run and its tool calls so far,
+  with its latest call under its description (`…` running, `✓`, `✗`, `⊘`).
 - `✓` or `✗` a finished subagent, with its total time; it stays for 30 seconds, then leaves the band.
 - Running subagents come first. The band shows at most six, as many as its rows allow, and counts the rest
   (`+2 more`). It draws nothing while no subagent has run for 30 seconds, and empties on `/clear` and `/resume`.
