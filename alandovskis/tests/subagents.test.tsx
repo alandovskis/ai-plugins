@@ -11,13 +11,13 @@ const band = (maxRows = 12) =>
     props: { hasSurvey: false, isWorking: true, maxRows, bodyColumns: 100, scroll: { offset: 0, bodyRows: maxRows }, view: {} },
   }) as const
 
-// The band's rows as shown: each row is one Text holding Texts, so keep the
-// whole rows (a mark and words, after the model's badge), not their parts.
+// The band's rows as shown: each row is one truncating Text holding Texts, so
+// keep the whole rows, not their parts, and the count of the rest.
 const bandLines = async ($: Engine, surface: (typeof SURFACES)[number], maxRows?: number) => {
   const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band(maxRows) })
-  const texts = (await ui.findAll({ type: 'Text' })).map(found => found.text)
+  const texts = await ui.findAll({ type: 'Text' })
 
-  return texts.filter(text => /^( \S+  )?[⇢✓✗…⊘+]\s*\S/.test(text))
+  return texts.filter(found => found.props.wrap === 'truncate-end' || /^\+\d+ more$/.test(found.text)).map(found => found.text)
 }
 
 // The ids below are the ones the engine stamps: a call's own tool_use_id, and
@@ -42,7 +42,12 @@ const finish = ($: Engine, agentId: string, reason: 'answer' | 'error' = 'answer
   $.turn.complete({ answer: '', durationMs: 0, isAborted: false, turnId: `turn-${agentId}`, reason, agentId })
 
 // What each subagent type runs on, as the engine resolves it.
-const MODELS: Record<string, string> = { Explore: 'claude-haiku-5-5', Plan: 'claude-sonnet-5-5' }
+const MODELS: Record<string, string> = {
+  Explore: 'claude-haiku-5-5',
+  Plan: 'claude-sonnet-5-5',
+  Writer: 'claude-fable-5-1',
+  Local: 'llama-4',
+}
 
 // Answers the engine's side for a session whose subagents are spawned in order
 // as a1, a2, ..., on their type's model: every tool call succeeds and every turn ends, the store is
@@ -81,7 +86,7 @@ test('a running subagent shows its model, task, time, calls and latest call', as
   await clock.advance(7_000)
 
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface)).toEqual([' claude-haiku-5-5  ⇢ Explore Find callers of parse() 12s · 2 calls', '✓ Grep parse\\('])
+    expect(await bandLines($, surface)).toEqual([' haiku-5-5  ⇢ Explore 12s · 2 calls', 'Find callers of parse()', '✓ Grep parse\\('])
   }
 })
 
@@ -100,6 +105,27 @@ test('the band is framed by a border with its title on it', async ($, on) => {
   }
 })
 
+test('each model family has a badge colour of its own, and no claude- prefix', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  for (const type of ['general-purpose', 'Plan', 'Explore', 'Writer', 'Local']) {
+    await spawn($, type, `task for ${type}`)
+  }
+
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band(16) })
+    const badges = (await ui.findAll({ type: 'Text' })).filter(found => found.props.color === 'inverseText')
+    expect(badges.map(found => [found.text, found.props.backgroundColor])).toEqual([
+      [' opus-5-5 ', 'claude'],
+      [' sonnet-5-5 ', 'suggestion'],
+      [' haiku-5-5 ', 'merged'],
+      [' fable-5-1 ', 'planMode'],
+      [' llama-4 ', 'inactive'],
+    ])
+  }
+})
+
 test('a finished subagent stays for 30 seconds with its outcome', async ($, on) => {
   const clock = mock.clock(on, { now: 0 })
   engine(on)
@@ -114,8 +140,10 @@ test('a finished subagent stays for 30 seconds with its outcome', async ($, on) 
 
   for (const surface of SURFACES) {
     expect(await bandLines($, surface)).toEqual([
-      ' claude-sonnet-5-5  ✓ Plan Design the lexer split 31s · 1 call',
-      ' claude-haiku-5-5  ✗ Explore Find callers 31s · 0 calls',
+      ' sonnet-5-5  ✓ Plan 31s · 1 call',
+      'Design the lexer split',
+      ' haiku-5-5  ✗ Explore 31s · 0 calls',
+      'Find callers',
     ])
   }
 
@@ -137,18 +165,20 @@ test('running subagents come first, and the band keeps to its room', async ($, o
   await finish($, 'a1')
 
   for (const surface of SURFACES) {
-    const lines = await bandLines($, surface)
-    expect(lines.slice(0, 6)).toEqual([2, 3, 4, 5, 6, 7].map(n => ` claude-haiku-5-5  ⇢ Explore task ${n} ${9 - n}s · 0 calls`))
+    const lines = await bandLines($, surface, 16)
+    expect(lines.slice(0, 12)).toEqual([2, 3, 4, 5, 6, 7].flatMap(n => [` haiku-5-5  ⇢ Explore ${9 - n}s · 0 calls`, `task ${n}`]))
     expect(lines.at(-1)).toBe('+2 more')
-    expect(lines).toHaveLength(7)
+    expect(lines).toHaveLength(13)
   }
 
-  // Given five rows, the frame takes two, and the band draws two entries and
-  // the count of the rest.
+  // Given seven rows, the frame takes two, and the band draws two entries of
+  // two rows each and the count of the rest.
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface, 5)).toEqual([
-      ' claude-haiku-5-5  ⇢ Explore task 2 7s · 0 calls',
-      ' claude-haiku-5-5  ⇢ Explore task 3 6s · 0 calls',
+    expect(await bandLines($, surface, 7)).toEqual([
+      ' haiku-5-5  ⇢ Explore 7s · 0 calls',
+      'task 2',
+      ' haiku-5-5  ⇢ Explore 6s · 0 calls',
+      'task 3',
       '+6 more',
     ])
   }
@@ -175,7 +205,7 @@ test('/subagents hides the band, and shows it again', async ($, on) => {
 
   expect(await toggle()).toMatchObject({ text: 'Subagent band shown.' })
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface)).toEqual([' claude-haiku-5-5  ⇢ Explore Find callers 0s · 0 calls'])
+    expect(await bandLines($, surface)).toEqual([' haiku-5-5  ⇢ Explore 0s · 0 calls', 'Find callers'])
   }
 })
 

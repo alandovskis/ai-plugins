@@ -1,7 +1,7 @@
 import type { Color, Elements, RenderSurface } from 'claude-code'
 
 import type { FlowStatus, RunStatus, SubagentCall, SubagentRun } from '../types'
-import { MARKS } from './shared'
+import { MARKS, modelColor, modelName } from './shared'
 
 // The band above the prompt: what each subagent is doing, while it runs and
 // for a short while after. What is here is pure: how the runs change, and how
@@ -21,7 +21,7 @@ const RUN_MARKS = {
   error: MARKS.error,
 } as const satisfies Record<RunStatus, { glyph: string; color: Color }>
 
-export const isShown = (run: SubagentRun, at: number) => run.endedAt === undefined || at - run.endedAt < LINGER_MS
+export const isShown =(run: SubagentRun, at: number) => run.endedAt === undefined || at - run.endedAt < LINGER_MS
 
 const changed = (list: readonly SubagentRun[], agentId: string, change: (run: SubagentRun) => SubagentRun) =>
   list.map(run => (run.agentId === agentId ? change(run) : run))
@@ -48,8 +48,9 @@ const duration = (ms: number) => {
 
 const callCount = (calls: number) => `${calls} ${calls === 1 ? 'call' : 'calls'}`
 
-// Rows an entry takes: its own, and its latest call's while it runs.
-const rowsOf = (run: SubagentRun) => (run.status === 'running' && run.latest !== undefined ? 2 : 1)
+// Rows an entry takes: its own, its task's, and its latest call's while it runs.
+const rowsOf = (run: SubagentRun) =>
+  1 + (run.task === '' ? 0 : 1) + (run.status === 'running' && run.latest !== undefined ? 1 : 0)
 
 type Table = Pick<Elements[RenderSurface], 'Box' | 'Text'>
 
@@ -87,9 +88,14 @@ export const bandView = (
 
     return [
       <Text wrap="truncate-end">
-        <Text color="inverseText" backgroundColor="claude">{` ${run.model} `}</Text> <Text color={mark.color}>{mark.glyph} </Text>
-        <Text bold>{run.label}</Text> {run.task} <Text dimColor>{time} · {callCount(run.calls)}</Text>
+        <Text color="inverseText" backgroundColor={modelColor(run.model)}>{` ${modelName(run.model)} `}</Text> <Text color={mark.color}>{mark.glyph} </Text>
+        <Text bold>{run.label}</Text> <Text dimColor>{time} · {callCount(run.calls)}</Text>
       </Text>,
+      run.task === '' ? null : (
+        <Box paddingLeft={3}>
+          <Text wrap="truncate-end">{run.task}</Text>
+        </Box>
+      ),
       latest === undefined ? null : (
         <Box paddingLeft={3}>
           <Text wrap="truncate-end">

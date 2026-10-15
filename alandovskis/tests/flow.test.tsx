@@ -22,6 +22,7 @@ const PANE = {
 const flowLines = async ($: Engine, surface: (typeof SURFACES)[number]) => {
   const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...PANE })
   const texts = (await ui.findAll({ type: 'Text' })).map(found => found.text)
+  await ui.unmount()
 
   return texts.filter(text => /^[●├│└]/.test(text) && /[\p{L}\p{N}]/u.test(text))
 }
@@ -85,7 +86,7 @@ test('a prompt, its tool calls, a subagent and the answer show in order', async 
       '├ ⊘ Bash rm -rf /',
       '├ ✗ Write out.txt',
       '├ ✗ Edit broken.ts',
-      '├ ✓ ⇢ Explore (claude-haiku-5-5) Find callers',
+      '├ ✓ ⇢ Explore (haiku-5-5) Find callers',
       '│ ├ ✓ Read src/lexer.ts',
       '└ ◆ Claude 4.2s · All done.',
     ])
@@ -110,11 +111,19 @@ test('parallel subagents keep their own calls', async ($, on) => {
 
   for (const surface of SURFACES) {
     expect(await flowLines($, surface)).toEqual([
-      '├ ✓ ⇢ Explore (claude-haiku-5-5) Explore',
+      '├ ✓ ⇢ Explore (haiku-5-5) Explore',
       '│ ├ ✓ Read one.ts',
       '│ ├ ✓ Read three.ts',
-      '├ ✓ ⇢ Plan (claude-sonnet-5-5) Plan',
+      '├ ✓ ⇢ Plan (sonnet-5-5) Plan',
       '│ ├ ✓ Read two.ts',
+    ])
+    // Each model in its family's colour, as in the band.
+    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...PANE })
+    const models = (await ui.findAll({ type: 'Text', text: /^ \(\S+-5-5\)$/ })).map(found => [found.text, found.props.color])
+    await ui.unmount()
+    expect(models).toEqual([
+      [' (haiku-5-5)', 'merged'],
+      [' (sonnet-5-5)', 'suggestion'],
     ])
   }
 })
@@ -140,9 +149,9 @@ test("a workflow's agents all draw under its call", async ($, on) => {
   for (const surface of SURFACES) {
     expect(await flowLines($, surface)).toEqual([
       '├ ✓ Workflow Review',
-      '│ ├ ✓ ⇢ Explore (claude-haiku-5-5) x',
+      '│ ├ ✓ ⇢ Explore (haiku-5-5) x',
       '│ │ ├ ✓ Read two.ts',
-      '│ ├ … ⇢ Explore (claude-sonnet-5-5) x',
+      '│ ├ … ⇢ Explore (sonnet-5-5) x',
       '│ │ ├ ✓ Read one.ts',
     ])
   }

@@ -13,6 +13,21 @@ export const MARKS = {
   denied: { glyph: '⊘', color: 'error' },
 } as const satisfies Record<FlowStatus, { glyph: string; color: Color }>
 
+// Each model family's colour: theme keys, so it follows the theme, and
+// none of the marks' status colours. A model of no family here is grey.
+const MODEL_COLORS = [
+  { family: 'opus', color: 'claude' },
+  { family: 'sonnet', color: 'suggestion' },
+  { family: 'haiku', color: 'merged' },
+  { family: 'fable', color: 'planMode' },
+] as const satisfies readonly { family: string; color: Color }[]
+
+export const modelColor = (model: string): Color =>
+  MODEL_COLORS.find(({ family }) => model.includes(family))?.color ?? 'inactive'
+
+// A model is named without the `claude-` every model id starts with.
+export const modelName = (model: string) => model.replace(/^claude-/, '')
+
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
 // Cut by grapheme, so a cut never splits an emoji, a flag or a ZWJ sequence;

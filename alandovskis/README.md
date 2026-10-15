@@ -32,7 +32,7 @@ drawing live in `hooks/flow.tsx` and `hooks/subagents.tsx`; the state contract i
 ● You Fix the parser
 ├ ✓ Read src/parser.ts
 ├ ✗ Bash rm -rf /
-├ ✓ ⇢ Explore (claude-haiku-5-5) Find callers
+├ ✓ ⇢ Explore (haiku-5-5) Find callers
 │ ├ ✓ Read src/lexer.ts
 └ ◆ Claude 4.2s · All done.
 ```
@@ -40,8 +40,8 @@ drawing live in `hooks/flow.tsx` and `hooks/subagents.tsx`; the state contract i
 - `●` your prompt (its first line).
 - `├` a tool call with its main argument and status: `…` running, `✓` done, `✗` failed or refused, `⊘` refused
   by another plugin's hook. A call you or a settings hook refuse reaches the sidebar as a failed call, so it shows `✗`.
-- `⇢` a subagent, with the model it runs on; its own tool calls are drawn under it, even when several subagents run at
-  once. Each of a workflow's agents gets a `⇢` row of its own under its `Workflow` call.
+- `⇢` a subagent, with the model it runs on, coloured as in the band; its own tool calls are drawn under it, even
+  when several subagents run at once. Each of a workflow's agents gets a `⇢` row of its own under its `Workflow` call.
 - `└ ◆` Claude's answer: how long the turn took and its first line. An interrupted or failed turn shows `└ ✗` and
   the reason (`aborted`, `error`, `refusal` with its explanation).
 
@@ -53,16 +53,19 @@ call.
 **Subagent band:** while subagents run, a framed band titled "Subagents" above the prompt shows what each one is doing:
 
 ```
-╭─ Subagents ──────────────────────────────────────────────────────╮
-│ claude-haiku-5-5 ⇢ Explore Find callers of parse() 12s · 7 calls │
-│    … Grep parse\(                                                │
-│ claude-sonnet-5-5 ✓ Plan Design the lexer split 31s · 9 calls    │
-╰──────────────────────────────────────────────────────────────────╯
+╭─ Subagents ───────────────────────╮
+│ haiku-5-5 ⇢ Explore 12s · 7 calls │
+│    Find callers of parse()        │
+│    … Grep parse\(                 │
+│ sonnet-5-5 ✓ Plan 31s · 9 calls   │
+│    Design the lexer split         │
+╰───────────────────────────────────╯
 ```
 
-- Each line starts with the model the subagent runs on, as a badge on a coloured background.
-- `⇢` a running subagent: its type (a workflow agent's name), its task, how long it has run and its tool calls so far,
-  with its latest call under it (`…` running, `✓`, `✗`, `⊘`).
+- Each entry starts with the model the subagent runs on, without its `claude-` prefix, as a badge coloured by family
+  (opus orange, sonnet blue, haiku purple, fable teal, any other grey), with its description on the line under it.
+- `⇢` a running subagent: its type (a workflow agent's name), how long it has run and its tool calls so far, with its
+  latest call under its description (`…` running, `✓`, `✗`, `⊘`).
 - `✓` or `✗` a finished subagent, with its total time; it stays for 30 seconds, then leaves the band.
 - Running subagents come first. The band shows at most six, as many as its rows allow, and counts the rest
   (`+2 more`). It draws nothing while no subagent has run for 30 seconds, and empties on `/clear` and `/resume`.

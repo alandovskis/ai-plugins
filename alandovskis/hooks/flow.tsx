@@ -1,7 +1,7 @@
 import type { Elements, RenderSurface } from 'claude-code'
 
 import type { FlowNode } from '../types'
-import { MARKS, clip } from './shared'
+import { MARKS, clip, modelColor, modelName } from './shared'
 
 // The /flow sidebar: the conversation one line per event. What is here is
 // pure: how the rows change, and how they are drawn. register.tsx wires it
@@ -118,7 +118,7 @@ export const flowView = ({ Box, Text }: Table, list: readonly FlowNode[], bodyCo
         <Text dimColor>{'│ '.repeat(depth)}├ </Text>
         <Text color={mark.color}>{mark.glyph} </Text>
         <Text bold={one.kind === 'agent'}>{one.label}</Text>
-        {one.model === undefined ? null : <Text dimColor> ({one.model})</Text>} <Text dimColor>{one.detail}</Text>
+        {one.model === undefined ? null : <Text color={modelColor(one.model)}> ({modelName(one.model)})</Text>} <Text dimColor>{one.detail}</Text>
       </Text>
     )
   }
