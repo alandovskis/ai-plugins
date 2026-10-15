@@ -96,7 +96,7 @@ one is doing:
   with its latest call under its description (`…` running, `✓`, `✗`, `⊘`).
 - `✓` or `✗` a finished subagent, with its total time; it stays for 30 seconds, then leaves the band.
 - Running subagents come first. The band shows at most six, as many as its rows allow, and counts the rest
-  (`+2 more`). It draws nothing while no subagent has run for 30 seconds, and empties on `/clear` and `/resume`.
+  (`+2 more`). It says `No subagents` while none has run for 30 seconds, and empties on `/clear` and `/resume`.
 
 `/subagents` hides the band, and shows it again; the choice is kept across sessions.
 

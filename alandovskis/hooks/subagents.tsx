@@ -94,13 +94,15 @@ const rowsOf = (run: SubagentRun) =>
 type Table = Pick<Elements[RenderSurface], 'Box' | 'Text'>
 
 const TITLE = 'Subagents'
+const EMPTY = 'No subagents'
 // The title's spaces either side, and the frame's corner, border and padding
 // either side of it.
 const TITLE_CHROME = 2 + 4
 
-// The band's tree, or undefined when it has nothing to show. `place` is the
-// session's: the title shows it, and an entry shows its own only where it
-// differs, as in a worktree of its own.
+// The band's tree, saying there are no subagents when none is shown, or
+// undefined when the frame has no row inside it. `place` is the session's: the
+// title shows it, and an entry shows its own only where it differs, as in a
+// worktree of its own.
 export const bandView = (
   { Box, Text }: Table,
   runs: readonly SubagentRun[],
@@ -108,12 +110,12 @@ export const bandView = (
   place: Place | null,
   room: { maxRows: number; bodyColumns: number },
 ) => {
+  const maxRows = room.maxRows - FRAME_ROWS
+  if (maxRows < 1) return undefined
   const visible = runs.filter(run => isShown(run, at))
-  if (visible.length === 0) return undefined
 
   // Running subagents first, each group in the order they started; then as
   // many entries as the frame's rows allow, a row kept for the rest's count.
-  const maxRows = room.maxRows - FRAME_ROWS
   const ordered = [
     ...visible.filter(run => run.status === 'running'),
     ...visible.filter(run => run.status !== 'running'),
@@ -173,7 +175,13 @@ export const bandView = (
           {where}{' '}
         </Text>
       </Box>
-      {shown.map(entry)}
+      {visible.length === 0 ? (
+        <Text dimColor wrap="truncate-end">
+          {EMPTY}
+        </Text>
+      ) : (
+        shown.map(entry)
+      )}
       {more > 0 ? <Text dimColor>+{more} more</Text> : null}
     </Box>
   )

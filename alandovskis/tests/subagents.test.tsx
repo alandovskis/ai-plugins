@@ -169,10 +169,19 @@ const engine = (on: On, repos: Repos = {}, where = { cwd: '/' }, session: Sessio
   on('turn.complete', () => ({ text: '' }))
 }
 
-test('the band draws nothing while no subagent has run', async ($, on) => {
+test('the band says there are no subagents while none has run', async ($, on) => {
   engine(on)
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface)).toEqual([])
+    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band() })
+    expect((await ui.find({ key: 'subagents-title' }))?.text.trim()).toBe('Subagents')
+    expect(await bandLines($, surface)).toEqual(['No subagents'])
+  }
+})
+
+test('the band leaves out its empty line when the frame has no row for it', async ($, on) => {
+  engine(on)
+  for (const surface of SURFACES) {
+    expect(await boxElements($, surface, 'subagents', 2)).toEqual([])
   }
 })
 
@@ -250,7 +259,7 @@ test('a finished subagent stays for 30 seconds with its outcome', async ($, on) 
 
   await clock.advance(30_000)
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface)).toEqual([])
+    expect(await bandLines($, surface)).toEqual(['No subagents'])
   }
 })
 
@@ -321,7 +330,7 @@ test('/clear empties the band', async ($, on) => {
   await $.session.end({ reason: 'clear', sessionId: 's', resume: { id: 's' } })
 
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface)).toEqual([])
+    expect(await bandLines($, surface)).toEqual(['No subagents'])
   }
 })
 
@@ -511,7 +520,7 @@ test('the session panel shows the model, how full the context is and the rate li
       ['░░', undefined],
       ['81%', 'error'],
     ])
-    expect(await bandLines($, surface)).toEqual([])
+    expect(await bandLines($, surface)).toEqual(['No subagents'])
   }
 })
 
