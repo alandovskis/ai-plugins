@@ -6,7 +6,7 @@
     {
       "name": "alandovskis",
       "source": "./alandovskis",
-      "description": "Personal agent skills: requirements docs (BRD/PRD), planning and implementation, code review, plus a /flow conversation sidebar and a subagent band"
+      "description": "Personal agent skills: requirements docs (BRD/PRD), planning and implementation, code review, plus a /flow conversation sidebar, and a session panel and subagent band above the prompt"
     }
   ]
 }

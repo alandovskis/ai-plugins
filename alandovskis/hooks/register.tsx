@@ -3,11 +3,26 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { FlowNode, FlowStatus, Place, RunStatus, SubagentCall } from '../types'
 import { appended, changed, flowView, seconds, withSpawn } from './flow'
+import { PANEL_ROWS, gaugeOf, sameGauge, sessionView } from './session'
 import { AGENT_TOOLS, clip, detailOf, firstLine, statusOf } from './shared'
-import { LABEL_MAX, TEXT_MAX, bandView, called, ended, isShown, placeOf, placed, settled, started } from './subagents'
+import {
+  LABEL_MAX,
+  TEXT_MAX,
+  bandView,
+  called,
+  ended,
+  isShown,
+  measured,
+  placeOf,
+  placed,
+  settled,
+  started,
+  windowOf,
+} from './subagents'
 
-// Each event is hooked once here and fed to both features: the /flow sidebar
-// (flow.tsx) and the subagent band above the prompt (subagents.tsx). Every
+// Each event is hooked once here and fed to the features: the /flow sidebar
+// (flow.tsx), and above the prompt the session panel (session.tsx) over the
+// subagent band (subagents.tsx). Every
 // call on `$` is made in this file, as the engine follows `$` no further.
 //
 // The hooks only observe, so they carry no .catch: one that fails is skipped,
@@ -24,6 +39,7 @@ const runs = atom({ plugin: 'alandovskis', key: 'subagentRuns' } as const, [])
 const now = atom({ plugin: 'alandovskis', key: 'subagentsNow' } as const, 0)
 const isBandHidden = atom({ plugin: 'alandovskis', key: 'subagentsHidden' } as const, false)
 const place = atom({ plugin: 'alandovskis', key: 'subagentsPlace' } as const, null)
+const figures = atom({ plugin: 'alandovskis', key: 'sessionGauge' } as const, null)
 
 // Where the person's choice to hide the band is kept across sessions.
 const BAND_HIDDEN_KEY = 'subagentsHidden'
@@ -92,6 +108,22 @@ const readRunPlace = async ($: EngineInterface, agentId: string, cwd: Promise<st
   if (found !== null) await update($, runs, list => placed(list, agentId, found))
 }
 
+// The session's model and its context window, for a subagent on that model.
+const readSessionWindow = async ($: EngineInterface) => {
+  const [model, usage] = await Promise.all([$.session.model(), $.session.usage()])
+
+  return { model, window: usage.context.window }
+}
+
+// Rereads the session panel's figures, writing only when one moved, so an
+// unchanged second draws nothing again; the resets count down by the minute.
+// Read each tick, as the model can change between turns and no event says so.
+const readFigures = async ($: EngineInterface) => {
+  const [model, usage, at] = await Promise.all([$.session.model(), $.session.usage(), $.clock.now()])
+  const found = gaugeOf(model, usage, at)
+  if (!sameGauge(await read($, figures), found)) await update($, figures, () => found)
+}
+
 // Moves the clock the band draws its times from, and drops finished runs
 // whose time is up; it writes only while the band has something to show.
 const tick = async ($: EngineInterface) => {
@@ -109,9 +141,11 @@ export const register: Register = on => {
     const stored = await $.store.get(BAND_HIDDEN_KEY)
     await update($, isBandHidden, () => stored === true)
     void landed($, "reading the session's place", readSessionPlace($, e.cwd))
+    void landed($, "reading the session's figures", readFigures($))
     // Runs until the module reloads, which raises session.start again.
     $.clock.every(TICK_MS, () => {
       void landed($, 'a subagent band tick', tick($))
+      void landed($, "rereading the session's figures", readFigures($))
     })
 
     return next(e)
@@ -236,6 +270,10 @@ export const register: Register = on => {
       await update($, nodes, list => withSpawn(list, { toolUseId: e.tool_use_id, agentId, label, model, task }))
     }
     const startRun = async () => {
+      // The run starts measured against the model's own window when the
+      // session's cannot be read.
+      let session: Awaited<ReturnType<typeof readSessionWindow>> | null = null
+      await landed($, "reading the session's context window", readSessionWindow($).then(found => (session = found)))
       const at = await $.clock.now()
       await update($, runs, list =>
         started(list, {
@@ -246,6 +284,7 @@ export const register: Register = on => {
           status: 'running',
           startedAt: at,
           calls: 0,
+          window: windowOf(spawned.model, session),
         }),
       )
       await update($, now, () => at)
@@ -258,6 +297,18 @@ export const register: Register = on => {
     }
 
     return spawned
+  })
+
+  // Each response a subagent's loop is answered: how full its window was.
+  on('turn.step', async function* ($, e, next) {
+    const stepped = yield* next(e)
+    const { agentId } = e
+    const { usage } = stepped
+    if (agentId !== undefined && usage !== null) {
+      await landed($, `measuring subagent ${agentId}'s context`, update($, runs, list => measured(list, agentId, usage)))
+    }
+
+    return stepped
   })
 
   on('turn.complete', async ($, e, next) => {
@@ -293,10 +344,23 @@ export const register: Register = on => {
     flowView($.ui.resolve(e), await read($, nodes), e.props.bodyColumns),
   )
 
+  // The session panel on top, the subagent band under it in the rows left.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey || (await read($, isBandHidden))) return next(e)
-    const band = bandView($.ui.resolve(e), await read($, runs), await read($, now), await read($, place), e.props)
+    if (e.props.hasSurvey) return next(e)
+    const ui = $.ui.resolve(e)
+    const panel = sessionView(ui, await read($, figures), e.props.bodyColumns)
+    const room = { ...e.props, maxRows: e.props.maxRows - (panel === undefined ? 0 : PANEL_ROWS) }
+    const band = (await read($, isBandHidden))
+      ? undefined
+      : bandView(ui, await read($, runs), await read($, now), await read($, place), room)
+    if (panel === undefined && band === undefined) return next(e)
+    const { Box } = ui
 
-    return band ?? next(e)
+    return (
+      <Box key="above-prompt" flexDirection="column">
+        {panel}
+        {band}
+      </Box>
+    )
   })
 }

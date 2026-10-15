@@ -48,6 +48,28 @@ export interface SubagentRun {
   latest?: SubagentCall
   /** Where it works, read on its first tool call; absent until then, or outside git. */
   place?: Place
+  /** The context window its fill is measured against, in tokens. */
+  window: number
+  /** Input tokens its last response was answered over; absent before its first. */
+  tokens?: number
+}
+
+/** A rate-limit window as the session panel shows it. */
+export interface SessionLimit {
+  /** How much of it is used, a whole percentage. */
+  percent: number
+  /** How long until it resets, as shown (`2h 10m`); absent when the engine gives no time, or it has passed. */
+  resetsIn?: string
+}
+
+/** The session's figures the panel above the band shows, as the status line has them. */
+export interface SessionGauge {
+  model: string
+  /** How full the context window is, a whole percentage; absent before the first response. */
+  contextPercent?: number
+  /** The five-hour and the weekly rate limit; absent off a subscription. */
+  fiveHour?: SessionLimit
+  week?: SessionLimit
 }
 
 declare module 'claude-code' {
@@ -60,6 +82,8 @@ declare module 'claude-code' {
       subagentsHidden: boolean
       /** Where the session works, for the band's title; null outside git. */
       subagentsPlace: Place | null
+      /** null until the session's figures are first read. */
+      sessionGauge: SessionGauge | null
     }
   }
 }

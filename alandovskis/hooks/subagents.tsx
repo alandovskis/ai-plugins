@@ -1,6 +1,7 @@
-import type { Color, Elements, RenderSurface } from 'claude-code'
+import type { Color, Elements, ModelUsage, RenderSurface } from 'claude-code'
 
 import type { FlowStatus, Place, RunStatus, SubagentCall, SubagentRun } from '../types'
+import { gauge, percentOf } from './gauge'
 import { MARKS, clip, modelColor, modelName } from './shared'
 
 // The band above the prompt: what each subagent is doing, while it runs and
@@ -14,6 +15,12 @@ const MAX_ENTRIES = 6
 const FRAME_ROWS = 2
 export const LABEL_MAX = 48
 export const TEXT_MAX = 120
+
+// Every current model's window is 1M tokens. The generations before Claude
+// 4.6 had 200K, but for a 1M variant, which the engine marks `[1m]`.
+const WINDOW = 1_000_000
+const OLDER_WINDOW = 200_000
+const OLDER_MODEL = /^claude-(3-|(opus|sonnet|haiku)-4(-[015])?(-\d{8})?$)/
 
 const RUN_MARKS = {
   running: { glyph: '⇢', color: 'claude' },
@@ -39,6 +46,24 @@ export const settled = (list: readonly SubagentRun[], agentId: string, callId: s
 
 export const ended = (list: readonly SubagentRun[], agentId: string, status: RunStatus, at: number) =>
   changed(list, agentId, run => (run.endedAt === undefined ? { ...run, status, endedAt: at } : run))
+
+// The input side of a response's usage: what the window held when it answered,
+// as the status line counts it.
+export const measured = (list: readonly SubagentRun[], agentId: string, usage: ModelUsage) =>
+  changed(list, agentId, run => ({
+    ...run,
+    tokens: usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens,
+  }))
+
+// The window a subagent on `model` is measured against: the session's own when
+// it runs the session's model, so a window the session was given holds;
+// otherwise the model's.
+export const windowOf = (model: string, session: { model: string; window: number } | null) => {
+  if (session !== null && session.model === model) return session.window
+  if (model.includes('[1m]')) return WINDOW
+
+  return OLDER_MODEL.test(model) ? OLDER_WINDOW : WINDOW
+}
 
 export const placed = (list: readonly SubagentRun[], agentId: string, place: Place) =>
   changed(list, agentId, run => ({ ...run, place }))
@@ -108,11 +133,14 @@ export const bandView = (
     const time = duration((run.endedAt ?? at) - run.startedAt)
     const latest = run.status === 'running' ? run.latest : undefined
     const away = run.place !== undefined && (place === null || !samePlace(run.place, place)) ? run.place : undefined
+    const context = () =>
+      run.tokens === undefined ? null : <Text> {gauge({ Text }, percentOf(run.tokens, run.window))}</Text>
 
     return [
       <Text wrap="truncate-end">
         <Text color="inverseText" backgroundColor={modelColor(run.model)}>{` ${modelName(run.model)} `}</Text> <Text color={mark.color}>{mark.glyph} </Text>
         <Text bold>{run.label}</Text>
+        {context()}
         {away === undefined ? null : <Text>{` ${placeText(away)}`}</Text>} <Text dimColor>{time} · {callCount(run.calls)}</Text>
       </Text>,
       run.task === '' ? null : (
@@ -138,7 +166,7 @@ export const bandView = (
 
   return (
     <Box key="subagents" flexDirection="column" width={room.bodyColumns} borderStyle="round" borderDimColor paddingX={1}>
-      <Box key="title" position="absolute" top={-1} left={1}>
+      <Box key="subagents-title" position="absolute" top={-1} left={1}>
         <Text>
           {' '}
           <Text bold>{TITLE}</Text>
