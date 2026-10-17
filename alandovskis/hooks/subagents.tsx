@@ -1,6 +1,7 @@
 import type { Color, Elements, ModelUsage, RenderSurface } from 'claude-code'
 
 import type { FlowStatus, Place, RunStatus, SubagentCall, SubagentRun } from '../types'
+import { FRAME_ROWS, frame } from './frame'
 import { gauge, percentOf } from './gauge'
 import { MARKS, clip, modelColor, modelName } from './shared'
 
@@ -11,8 +12,6 @@ import { MARKS, clip, modelColor, modelName } from './shared'
 // A finished subagent stays this long, so a quick one is not missed.
 const LINGER_MS = 30_000
 const MAX_ENTRIES = 6
-// The frame's top and bottom borders.
-const FRAME_ROWS = 2
 export const LABEL_MAX = 48
 export const TEXT_MAX = 120
 
@@ -105,6 +104,7 @@ const TITLE_CHROME = 2 + 4
 // worktree of its own.
 export const bandView = (
   { Box, Text }: Table,
+  surface: string,
   runs: readonly SubagentRun[],
   at: number,
   place: Place | null,
@@ -166,23 +166,23 @@ export const bandView = (
   const titleRoom = Math.max(0, room.bodyColumns - TITLE_CHROME - TITLE.length)
   const where = place === null || titleRoom === 0 ? '' : clip(` · ${placeText(place)}`, titleRoom)
 
-  return (
-    <Box key="subagents" flexDirection="column" width={room.bodyColumns} borderStyle="round" borderDimColor paddingX={1}>
-      <Box key="subagents-title" position="absolute" top={-1} left={1}>
-        <Text>
-          {' '}
-          <Text bold>{TITLE}</Text>
-          {where}{' '}
-        </Text>
-      </Box>
-      {visible.length === 0 ? (
+  return frame(
+    { Box, Text },
+    surface,
+    {
+      key: 'subagents',
+      columns: room.bodyColumns,
+      title: [' ', <Text bold>{TITLE}</Text>, where, ' '],
+    },
+    [
+      visible.length === 0 ? (
         <Text dimColor wrap="truncate-end">
           {EMPTY}
         </Text>
       ) : (
         shown.map(entry)
-      )}
-      {more > 0 ? <Text dimColor>+{more} more</Text> : null}
-    </Box>
+      ),
+      more > 0 ? <Text dimColor>+{more} more</Text> : null,
+    ],
   )
 }

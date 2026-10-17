@@ -1,6 +1,7 @@
 import type { Elements, RenderSurface, SessionRateLimit, SessionUsage } from 'claude-code'
 
 import type { SessionGauge, SessionLimit } from '../types'
+import { FRAME_ROWS, frame } from './frame'
 import { gauge } from './gauge'
 import { modelColor, modelName } from './shared'
 
@@ -9,8 +10,8 @@ import { modelColor, modelName } from './shared'
 // when each resets. What is
 // here is pure; register.tsx reads the figures and draws it.
 
-// The panel's rows: its one, and the frame's top and bottom borders.
-export const PANEL_ROWS = 3
+// The panel's rows: its one, and the frame's.
+export const PANEL_ROWS = 1 + FRAME_ROWS
 const TITLE = 'Session'
 
 const MINUTE_MS = 60_000
@@ -64,6 +65,7 @@ export const sameGauge = (one: SessionGauge | null, other: SessionGauge) =>
 // the session has none for is left out.
 export const sessionView = (
   { Box, Text }: Pick<Elements[RenderSurface], 'Box' | 'Text'>,
+  surface: string,
   figures: SessionGauge | null,
   bodyColumns: number,
 ) => {
@@ -77,20 +79,15 @@ export const sessionView = (
       </Text>
     )
 
-  return (
-    <Box key="session" flexDirection="column" width={bodyColumns} borderStyle="round" borderDimColor paddingX={1}>
-      <Box key="session-title" position="absolute" top={-1} left={1}>
-        <Text>
-          {' '}
-          <Text bold>{TITLE}</Text>{' '}
-        </Text>
-      </Box>
-      <Text wrap="truncate-end">
-        <Text color="inverseText" backgroundColor={modelColor(figures.model)}>{` ${modelName(figures.model)} `}</Text>
-        {item('Context', figures.contextPercent)}
-        {item('5h', figures.fiveHour?.percent, figures.fiveHour?.resetsIn)}
-        {item('Week', figures.week?.percent, figures.week?.resetsIn)}
-      </Text>
-    </Box>
+  return frame(
+    { Box, Text },
+    surface,
+    { key: 'session', columns: bodyColumns, title: [' ', <Text bold>{TITLE}</Text>, ' '] },
+    <Text wrap="truncate-end">
+      <Text color="inverseText" backgroundColor={modelColor(figures.model)}>{` ${modelName(figures.model)} `}</Text>
+      {item('Context', figures.contextPercent)}
+      {item('5h', figures.fiveHour?.percent, figures.fiveHour?.resetsIn)}
+      {item('Week', figures.week?.percent, figures.week?.resetsIn)}
+    </Text>,
   )
 }

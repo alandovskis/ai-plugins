@@ -68,6 +68,9 @@ band, and shows the session's figures as the status line has them:
 - A figure the session has none for is left out: the context before the first response, the rate limits off a
   subscription. The figures are read every second, so a `/model` switch shows within a second.
 - It yields the band to a survey, as the subagent band does. `/subagents` hides only the subagent band.
+- In Claude Desktop the panel and the subagent band move to a "Session" pane in the side panel, as plain rows each
+  titled on its first, and leave the area above the prompt. They stay above the prompt until Desktop draws the pane,
+  in a session that also has a terminal, and once you close the pane, for the rest of the session.
 
 **Subagent band:** while subagents run, a framed band titled "Subagents" under the session panel shows what each
 one is doing:
