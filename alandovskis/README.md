@@ -111,6 +111,9 @@ To work on them: `claude --plugin-dir ./alandovskis` loads the plugin and reload
   For local development, use `claude --plugin-dir ./alandovskis`.
 - **Codex**: `.codex-plugin/plugin.json` points at `./skills/`.
 - **Gemini CLI**: `gemini extensions install ./alandovskis` (skills auto-discovered from `skills/`).
+- **Junie**: copy or symlink `alandovskis/skills/*` into the project's `.junie/skills/` directory (or the user's
+  `~/.junie/skills/` directory). Junie reads the standard `SKILL.md` files directly; no Junie-specific manifest is
+  required.
 - **Anything else** (Cursor, Copilot, OpenCode, ...): copy or symlink `skills/*` into the runtime's skills directory.
 
 ## Runtime requirements

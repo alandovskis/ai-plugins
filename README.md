@@ -21,7 +21,7 @@ and English/French bilingual apps. Fork and edit them to suit yours.
 /plugin install alandovskis@alandovskis
 ```
 
-See [`alandovskis/README.md`](alandovskis/README.md) for the skill list, other runtimes (Codex, Gemini CLI) and
+See [`alandovskis/README.md`](alandovskis/README.md) for the skill list, other runtimes (Junie, Codex, Gemini CLI) and
 runtime requirements.
 
 ## Layout
