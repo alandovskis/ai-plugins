@@ -33,7 +33,7 @@ Every field is required.
 | `labels.feasible` | Label that marks an issue as feasible to take on. |
 | `labels.needsReview` | Label put on an issue that needs a person's review. |
 | `labels.needsSetup` | Label put on an issue when `run` or `evidence` is blank. |
-| `labels.deployFailed` | Label put on an issue when its deploy fails. |
+| `labels.deployFailed` | Label put on the merged PR when its deploy fails; the issue is reopened and labelled too, so it is not picked again. |
 | `app.id` | The GitHub App's numeric ID (a positive integer). |
 | `app.installationId` | The numeric ID of the App's installation on the repo (a positive integer). |
 | `app.privateKeyPath` | Absolute path to the App's private key file; relative paths and `~` are rejected. |
