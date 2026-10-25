@@ -11,7 +11,7 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | brd, prd, brd-to-prd | Requirements documents, published to Confluence |
 | plan-prd, implement-prd | PRD → SDD/test plan/implementation plan → test-first implementation |
 | prd-to-jira | Jira epic/stories from a PRD |
-| issue-tracker | Jira is the issue tracker, used through the Atlassian MCP |
+| issue-tracker | Jira (Atlassian MCP) or GitHub Issues (`gh`), whichever the project uses |
 | review-code | Code review through maintainability, efficiency, correctness, observability, scalability and security lenses, plus UX (accessibility, responsive, theming, via impeccable audit) for web UI |
 | create-pr | Review with review-code, fix, open the PR, watch CI, merge |
 | bilingual-apps | Apps are bilingual EN/FR: externalised strings, locale formatting, parity checks |

@@ -12,7 +12,7 @@
 
 ## Issues
 
-- Issues are tracked in Jira. Do not create GitHub Issues.
+- Issues are tracked in Jira or GitHub Issues, depending on the project. Use the one the project already uses.
 
 ## Known eval failures
 
