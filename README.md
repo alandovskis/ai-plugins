@@ -11,7 +11,9 @@ and English/French bilingual apps. Fork and edit them to suit yours.
 
 ## Prerequisites
 
-- **Atlassian MCP connector** for `brd`, `prd`, `brd-to-prd`, `plan-prd`, `implement-prd`, `prd-to-jira` and `issue-tracker`.
+- **Atlassian MCP connector** for `brd`, `prd`, `brd-to-prd`, `plan-prd`, `implement-prd`, and `prd-to-jira`.
+- **GitHub CLI (`gh`)** for `issue-tracker` when the project tracks issues in GitHub Issues, and for `create-pr`. The
+  Atlassian MCP connector is needed instead when it uses Jira.
 - **Node.js** (for the bundled Context7 MCP server, run through `npx`).
 
 ## Install
