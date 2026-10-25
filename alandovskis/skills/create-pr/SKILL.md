@@ -5,7 +5,7 @@ description: Use when asked to create, open or raise a pull request, to ship, la
 
 # Create PR
 
-Take the current branch from finished work to merged: review, fix, open the PR, watch CI, merge. Asking for this skill is the authorisation to merge; do not ask again before the merge.
+Take the current branch from finished work to merged: review, fix, open the PR, watch CI, merge. Asking for this skill is the authorisation to merge; do not ask again before the merge. The exception: if the requester says to leave the merge for later (for example "don't merge it" or "stop at an open, green PR"), do steps 1 to 6 and 8, skip step 7 and do not merge.
 
 ## Workflow
 
@@ -15,8 +15,8 @@ Take the current branch from finished work to merged: review, fix, open the PR, 
 4. **Open the PR.** Push the branch with upstream tracking, then `gh pr create` against the default branch. The title follows the project's commit convention; the body states what changed and why, how it was tested, and the unfixed findings from step 3. Follow any PR template in the repository and any attribution rule in force.
 5. **Watch CI.** Run `gh pr checks --watch --fail-fast`. If the repository has no checks, say so and go to step 7.
 6. **On failure,** read the failing log (`gh run view --log-failed`), fix the cause, commit, push and watch again, at most three times. Do not rerun, skip or disable a check, weaken a test or edit the workflow to make it pass; a failure unrelated to the change is reported to the user, not worked around. After three failed attempts, or when the cause is outside the branch, stop and report the PR URL and the failing check.
-7. **Merge.** Only when every required check has passed and the PR is mergeable, run `gh pr merge --squash --delete-branch`, or the one method the repository allows. Never use `--admin` or bypass branch protection. If a required review or approval is missing, leave the PR open and report what it is waiting for.
-8. **Report.** Give the PR URL, the review findings fixed and left, the CI result and whether it merged.
+7. **Merge.** Skip this step when the requester said to leave the merge for later. Otherwise, only when every required check has passed and the PR is mergeable, run `gh pr merge --squash --delete-branch`, or the one method the repository allows. Never use `--admin` or bypass branch protection. If a required review or approval is missing, leave the PR open and report what it is waiting for.
+8. **Report.** Give the PR URL, the review findings fixed and left, the CI result and whether it merged. When the merge was left for later, say the PR is open and waiting for the requester's approval.
 
 ## Red flags
 
