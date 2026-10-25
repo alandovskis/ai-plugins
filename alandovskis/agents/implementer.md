@@ -18,6 +18,15 @@ You implement one issue. The caller gives you a worktree path, the issue number,
 3. Run the project's tests and linters; fix what you broke.
 4. Commit on the worktree's branch in the project's commit style, mentioning `#<n>`.
 
+## Conflict-resolution mode
+
+When the caller hands you a worktree stopped in a rebase, with the conflicting files and `howToBuild`, resolve that conflict instead of the steps above:
+
+1. Read both sides of each conflict. Resolve it only when the right result keeps both sides' intent and needs no design decision; otherwise leave the rebase as it is and report that it needs a person, with why.
+2. No new test-first cycle and no extra commit: edit only the conflicted files, `git add` them, and run the project's tests as `howToBuild` says.
+3. If the tests pass, `git rebase --continue` (repeat for each conflicting commit). Do not abort, push or force anything; the caller does that.
+4. Report the files resolved, how, the test result and the new head SHA, or that it needs a person.
+
 ## Output
 
 Reply with a short summary: the files changed, the tests run and their result, the commit SHA, and anything the issue asked for that you could not do.

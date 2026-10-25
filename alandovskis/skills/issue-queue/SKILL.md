@@ -18,14 +18,14 @@ Once an issue is chosen, announce it again with its number (`issue=<n>`).
 Work is capped so reviews do not pile up. Another issue may start only while **both** hold:
 
 - fewer than **3 awaiting review**: the flow's open PRs (head branch `issue/<n>-*`), not merged, whose `reviewDecision` is not `APPROVED`
-- fewer than **3 implementing**: open issues that have a linked branch named `issue/<n>-*` but no open PR yet
+- fewer than **3 implementing**: open issues that have a linked branch named `issue/<n>-*` but no PR yet, in any state
 
 ```
-gh pr list --state open --json number,headRefName,body,reviewDecision
+gh pr list --state all --limit 500 --json number,state,headRefName,body,reviewDecision
 git ls-remote --heads origin 'issue/*'
 ```
 
-Keep only the PRs whose head branch starts with `issue/` (match by branch, not by author: an installation token may not resolve `@me`). Count those whose `reviewDecision` is anything but `APPROVED` (including empty). Count each `issue/<n>-*` branch that has no open PR with that head branch. If either count is 3 or more, the queue is **paused**: say so, name the cap that was hit, and return **none** without picking. An approved PR no longer counts as awaiting review.
+Keep only the PRs whose head branch starts with `issue/` (match by branch, not by author: an installation token may not resolve `@me`). Count the open ones whose `reviewDecision` is anything but `APPROVED` (including empty). Count each `issue/<n>-*` branch that has no PR at all (open, merged or closed) with that head branch: a branch left behind by a merged or closed PR is not being implemented. If either count is 3 or more, the queue is **paused**: say so, name the cap that was hit, and return **none** without picking. An approved PR no longer counts as awaiting review.
 
 ## Pick the next issue
 
@@ -42,7 +42,7 @@ Only when capacity allows.
    - it has none of the `priority` labels
    - it is already linked to an open PR (the PR body closes or references it, for example `Closes #n`, or its head branch is `issue/<n>-*`) or has an `issue/<n>-*` branch
    - it carries the `labels.needsReview`, `labels.needsSetup`, `labels.feasible` or `labels.deployFailed` label (already judged or waiting on a person)
-   - it has a merged or closed PR whose head branch is `issue/<n>-*` (its change shipped, or a person closed the PR; it is never implemented again automatically)
+   - it has a merged PR whose head branch is `issue/<n>-*` (its change shipped), or a closed one that a person closed (it is never implemented again automatically). A closed PR whose comments include `<!-- issue-flow: closed-by-flow -->` was closed by the flow when it escalated the issue and does not block it (`gh pr view <pr> --json comments`)
 
    Check only the labels the issue carries now. An issue whose needs-review label was removed is eligible again; do not skip it for having carried the label before.
 3. Rank the rest by `priority`, highest first: an issue's rank is its highest-ranked priority label. Among equal ranks, the oldest `createdAt` wins.
