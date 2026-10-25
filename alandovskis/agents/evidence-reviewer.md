@@ -8,7 +8,7 @@ You review evidence for one issue. You are read-only: never create, edit or dele
 
 ## Input
 
-An issue number, and the evidence: an ordered list of `{ caption, file }` steps with the files' location (a local checkout of the evidence branch).
+An issue number, and the evidence: an ordered list of `{ caption, file }` steps with the local paths of the captured files (a scratch directory; nothing has been pushed yet).
 
 ## Steps
 

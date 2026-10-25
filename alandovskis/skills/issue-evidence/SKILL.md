@@ -19,25 +19,26 @@ The worktree path holding the implemented change, its PR branch, the issue numbe
 
 1. Read `.github/issue-flow.json` for `run` and `evidence`. Follow that text, not an assumption: `run` says how to launch and drive the app, `evidence` says how to capture it. Never assume a browser; a CLI, library, service or embedded project is evidenced with terminal captures, test output or logs. Launch and drive the app the way the `run` skill does, from the worktree.
 2. Exercise the change as `howToExercise` describes, one step at a time. Capture a numbered sequence of steps, each `{ caption, file }`: the caption states the action taken and the result seen (for example "3. Toggle dark mode: the page turns dark"), the file is the capture (screenshot, terminal capture, or text/log output). Cover every behaviour the issue asks for, including the result and not only the setup. Write captures to a scratch directory outside the worktree.
-3. Store the files on the branch `issue-flow-evidence`, never on the PR branch. Use a separate worktree checkout of that branch so the PR worktree stays clean:
+3. Dispatch the `evidence-reviewer` agent with the issue number and the ordered steps with the local paths of their captured files in the scratch directory. Do this before anything is pushed. Do not judge the evidence yourself. It returns `{ verdict, gaps }`.
+4. If `verdict` is `gaps`, the evidence is incomplete: the PR must not be opened. Publish nothing; rejected evidence is never pushed. Report the gaps to the caller, who fixes the change or recaptures; do not return a PR-body block as if the evidence were complete.
+5. If `verdict` is `pass`, publish the files to the branch `issue-flow-evidence`, never to the PR branch. Use a separate worktree checkout of that branch so the PR worktree stays clean:
 
 ```
 git fetch origin issue-flow-evidence
 git worktree add <scratch>/evidence issue-flow-evidence
 ```
 
-If the branch does not exist, create it as an orphan (`git worktree add --detach <scratch>/evidence`, then `git -C <scratch>/evidence checkout --orphan issue-flow-evidence` and `git -C <scratch>/evidence rm -rf .`). Copy the files into `issue-<n>/` there, then commit and push:
+If the branch does not exist, create it as an orphan (`git worktree add --detach <scratch>/evidence`, then `git -C <scratch>/evidence checkout --orphan issue-flow-evidence` and `git -C <scratch>/evidence rm -rf .`). Copy the files into `issue-<n>/` there, then commit and push, rebasing first so a stale local branch or a concurrent push is not rejected as non-fast-forward (skip the pull for a brand-new orphan branch):
 
 ```
 git -C <scratch>/evidence add issue-<n>
 git -C <scratch>/evidence commit -m "evidence: issue <n>"
+git -C <scratch>/evidence pull --rebase origin issue-flow-evidence
 git -C <scratch>/evidence push origin issue-flow-evidence
 git worktree remove <scratch>/evidence
 ```
 
-4. Dispatch the `evidence-reviewer` agent with the issue number and the ordered steps with their files. Do not judge the evidence yourself. It returns `{ verdict, gaps }`.
-5. If `verdict` is `gaps`, the evidence is incomplete: the PR must not be opened. Report the gaps to the caller, who fixes the change or recaptures; do not return a PR-body block as if the evidence were complete.
-6. If `verdict` is `pass`, return the block below.
+6. Return the block below.
 
 ## PR body block
 
@@ -52,9 +53,9 @@ Build raw URLs as `https://raw.githubusercontent.com/<owner>/<repo>/issue-flow-e
    ```text
    <captured output>
    ```
-   [01-output.txt](https://raw.githubusercontent.com/<owner>/<repo>/issue-flow-evidence/issue-<n>/02.txt)
+   [02.txt](https://raw.githubusercontent.com/<owner>/<repo>/issue-flow-evidence/issue-<n>/02.txt)
 ```
 
 ## Output
 
-Return the reviewer's verdict, then either the PR body block (`pass`) or the gaps and the statement that the PR must not be opened (`gaps`). List every command run or that would be run, in order (the step marker, the config read, the launch and capture commands, the evidence worktree commands, the reviewer dispatch), and state that the PR branch received no evidence files.
+Return the reviewer's verdict, then either the PR body block (`pass`) or the gaps and the statement that the PR must not be opened (`gaps`). List every command run or that would be run, in order (the step marker, the config read, the launch and capture commands, the reviewer dispatch, and on pass the evidence worktree commands), and state that the PR branch received no evidence files.
