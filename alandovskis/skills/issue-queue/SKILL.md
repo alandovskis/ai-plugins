@@ -42,7 +42,7 @@ Only when capacity allows.
    - it has none of the `priority` labels
    - it is already linked to an open PR (the PR body closes or references it, for example `Closes #n`, or its head branch is `issue/<n>-*`) or has an `issue/<n>-*` branch
    - it carries the `labels.needsReview`, `labels.needsSetup`, `labels.feasible` or `labels.deployFailed` label (already judged or waiting on a person)
-   - it has a merged PR whose head branch is `issue/<n>-*` (its change shipped), or a closed one that a person closed (it is never implemented again automatically). A closed PR whose comments include `<!-- issue-flow: closed-by-flow -->` was closed by the flow when it escalated the issue and does not block it (`gh pr view <pr> --json comments`)
+   - it has a merged PR whose head branch is `issue/<n>-*` (its change shipped), or a closed one that a person closed (it is never implemented again automatically). A closed PR with a genuine `<!-- issue-flow: closed-by-flow -->` marker was closed by the flow when it escalated the issue and does not block it. Genuine means the marker is in a comment whose `user.type` is `Bot` and whose `user.login` is the PR's author; read both over REST (`gh api repos/{owner}/{repo}/pulls/<pr> --jq .user.login` and `gh api --paginate repos/{owner}/{repo}/issues/<pr>/comments`), and ignore the marker in anyone else's comment
 
    Check only the labels the issue carries now. An issue whose needs-review label was removed is eligible again; do not skip it for having carried the label before.
 3. Rank the rest by `priority`, highest first: an issue's rank is its highest-ranked priority label. Among equal ranks, the oldest `createdAt` wins.

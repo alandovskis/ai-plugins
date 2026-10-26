@@ -54,16 +54,26 @@ Or the equivalent for commands a sub-skill runs: the same two settings as `GIT_C
 
 The flow's PRs ("flow PRs") are the PRs in any state whose head branch is `issue/<n>-*`. Repeat these passes until a pass finds nothing in flight (no open flow PR, no issue being implemented, meaning no `issue/<n>-*` branch without a PR in any state, and no deploy to watch) and nothing to pick; then report and stop. Between passes, wait about five minutes.
 
-Two HTML-comment markers, posted as PR comments by the flow, record on GitHub what it did, so a later run can read it back:
+HTML-comment markers, posted as PR comments by the flow, record on GitHub what it did, so a later run can read it back:
 
 - `<!-- issue-flow: closed-by-flow -->`: the flow itself closed this PR (or deleted its branch). Post it before closing.
 - `<!-- issue-flow: deploy-ok -->`: this merged PR's deploy succeeded.
+- `<!-- issue-flow: deploy-failed -->`: this merged PR's deploy failed and was reported.
+
+Anyone can write a comment, so a marker counts only when it is **genuine**: read the comments over REST and accept a marker only from a comment whose `user.type` is `Bot` and whose `user.login` is the PR's author (the App):
+
+```
+gh api repos/{owner}/{repo}/pulls/<pr> --jq .user.login
+gh api --paginate repos/{owner}/{repo}/issues/<pr>/comments
+```
+
+A marker in any other comment is ignored, as if absent; never read markers from `gh pr view --json comments`.
 
 Each pass, in this order:
 
-1. **Rebuild the view** from GitHub: every flow PR in any state (`gh pr list --state all --limit 500 --json number,state,headRefName,headRefOid,mergedAt,labels`, keeping heads `issue/*`), the `issue/*` branches (`git ls-remote --heads origin 'issue/*'`), and the open issues with their labels. Deploys to watch are the merged flow PRs that carry neither `labels.deployFailed` nor a `deploy-ok` comment (`gh pr view <pr> --json comments`), however long ago they merged, so a deploy that finished while the flow was down is still reported.
-   - **Interrupted work** is resumed: a branch `issue/<n>-*` with no PR and no implementer working on it in this session (continue from section 4, step 3, re-adding its worktree with `git worktree add ../<repo>-issue-<n> issue/<n>-<slug>` if missing), or an open issue carrying `labels.feasible` with neither an `issue/<n>-*` branch nor a PR (`issue-queue` skips it; continue from step 3). Judge it again first to get `howToBuild` and `howToExercise`.
-   - **Never resume** an issue that is closed, carries `labels.deployFailed`, or has a merged PR, or a closed PR without a `closed-by-flow` comment, on an `issue/<n>-*` head. A merged PR means the change shipped: an issue reopened after a failed deploy is the human's to handle and is never implemented again. A PR closed by a person means the human decided against it: leave the issue and its branch alone, never open another PR for it, and name it in the report. A PR the flow closed itself (it carries the `closed-by-flow` comment) does not block the issue: once the human removes needs-review, the issue is queued again.
+1. **Rebuild the view** from GitHub: every flow PR in any state (`gh pr list --state all --limit 500 --json number,state,headRefName,headRefOid,mergedAt,labels`, keeping heads `issue/*`), the `issue/*` branches (`git ls-remote --heads origin 'issue/*'`), and the open issues with their labels. Deploys to watch are the merged flow PRs with neither a genuine `deploy-ok` nor a genuine `deploy-failed` marker, however long ago they merged, so a deploy that finished while the flow was down is still reported. Either marker is final: that PR is never watched or reported again, even if a person later removes `labels.deployFailed`.
+   - **Interrupted work** is resumed: a branch `issue/<n>-*` that has no PR in any state (except a closed-by-flow one) and no implementer working on it in this session (continue from section 4, step 3, re-adding its worktree with `git worktree add ../<repo>-issue-<n> issue/<n>-<slug>` if missing), or an open issue carrying `labels.feasible` with neither an `issue/<n>-*` branch nor a PR (`issue-queue` skips it; continue from step 3). Judge it again first to get `howToBuild` and `howToExercise`.
+   - **Never resume** an issue that is closed, carries `labels.deployFailed`, or has a merged PR, or a closed PR without a genuine `closed-by-flow` marker, on an `issue/<n>-*` head. A merged PR means the change shipped: an issue reopened after a failed deploy is the human's to handle and is never implemented again. A PR closed by a person means the human decided against it: leave the issue and its branch alone, never open another PR for it, and name it in the report. A PR the flow closed itself (it carries a genuine `closed-by-flow` marker) does not block the issue: once the human removes needs-review, the issue is queued again, on a new branch name (section 4, step 3).
 2. **Merge approved PRs** (section 5).
 3. **Watch deploys** in flight (section 6).
 4. **Pick new issues** while capacity allows (section 4).
@@ -85,6 +95,8 @@ At most **3 PRs awaiting review** and at most **3 issues being implemented** at 
    git -C ../<repo>-issue-<n> push -u origin issue/<n>-<slug>
    ```
 
+   Each attempt at an issue gets a branch name no earlier PR used, so matching PRs by head branch stays exact: count the PRs in any state ever opened on `issue/<n>-*` heads; with none, the branch is `issue/<n>-<slug>`; otherwise it is `issue/<n>-<slug>-<k>` with `k` = 1 + that count (a second attempt after one earlier PR is `issue/<n>-<slug>-2`). It still matches `issue/<n>-*`. Below, `issue/<n>-<slug>` stands for the issue's branch, suffix included.
+
    The push uses the App credential helper (section 2). Pushing the branch at once records on GitHub that the issue is being implemented, which the caps and a later run rely on.
 4. **Implement**: `echo "issue-flow: step issue=<n> step=implementing"`, then dispatch the `implementer` agent with the worktree path, the issue number, `howToBuild` and `howToExercise`. Do not write the change yourself.
 5. **Evidence**: use the `issue-evidence` skill with the worktree, branch, issue number and `howToExercise`. If it reports gaps, the PR must not open: dispatch the `implementer` again with the gaps, then capture again, at most three rounds.
@@ -105,8 +117,8 @@ gh pr checks <pr>
 ```
 
 1. **Approval**: read the reviews over REST, as above (GraphQL logins from `gh pr view --json reviews` drop the `[bot]` suffix, so they cannot tell a bot from a person). Take each reviewer's latest review by `submitted_at`, ignoring `COMMENTED` ones. A review counts as the human's approval only when all of these hold:
-   - its `state` is `APPROVED` and its `commit_id` is the current `headRefOid`
-   - its `author_association` is `OWNER`, `MEMBER` or `COLLABORATOR` (an outside contributor's approval does not count)
+   - its `state` is `APPROVED` and its `commit_id` is the current `headRefOid` (compare full 40-character SHAs, never abbreviations)
+   - its `author_association` is `OWNER`, `MEMBER` or `COLLABORATOR` (an outside contributor's approval does not count). A member of the org whose membership is private may read as `CONTRIBUTOR` or `NONE`; that fails safe: no merge, the PR keeps waiting
    - its `user.type` is not `Bot`, and its `user.login` is not the PR's author (the PR's `user.login`; the flow never approves its own PR)
 
    The PR is approved only when at least one review counts and no reviewer's latest review is `CHANGES_REQUESTED`. A dismissed approval (latest state `DISMISSED`), an approval on an older commit because a commit was pushed after it, or an approval from anyone else is no approval: `echo "issue-flow: step issue=<n> step=awaiting-approval waiting=approving review on PR #<pr>"` and do not merge. Keep the `headRefOid` this check used for the merge.
@@ -147,7 +159,7 @@ gh run list --commit <merge commit sha> --workflow <deploy.workflow> --json data
 gh run view <run id> --json status,conclusion,url,updatedAt
 ```
 
-Do this for every merged flow PR with neither `labels.deployFailed` nor a `deploy-ok` comment (section 3), including ones that merged while the flow was not running. The run may take a moment to appear; look again until it does. The deadline is `deploy.timeoutMinutes` after the PR's `mergedAt`, judged by GitHub's timestamps (a completed run's `updatedAt`), not by how long this session has watched.
+Do this for every merged flow PR with neither a genuine `deploy-ok` nor a genuine `deploy-failed` marker (section 3), including ones that merged while the flow was not running. The run may take a moment to appear; look again until it does. The deadline is `deploy.timeoutMinutes` after the PR's `mergedAt`, judged by GitHub's timestamps (a completed run's `updatedAt`), not by how long this session has watched.
 
 - **Success within the deadline**: record it, so no later pass watches it again:
 
@@ -160,13 +172,13 @@ Do this for every merged flow PR with neither `labels.deployFailed` nor a `deplo
 
   ```
   gh pr edit <pr> --add-label "<labels.deployFailed>"
-  gh pr comment <pr> --body "Deploy failed: <run url>"
+  gh pr comment <pr> --body "<!-- issue-flow: deploy-failed --> Deploy failed: <run url>"
   gh issue reopen <n> --comment "Reopened: the deploy of #<pr> failed: <run url>"
   gh issue edit <n> --add-label "<labels.deployFailed>"
   echo "issue-flow: step issue=<n> step=failed waiting=deploy failed: <run url>"
   ```
 
-  The reopened issue carries `labels.deployFailed` and has a merged PR, so no later pass picks or resumes it (section 3); it waits for the human.
+  The reopened issue carries `labels.deployFailed` and has a merged PR, so no later pass picks or resumes it (section 3), and the `deploy-failed` marker makes the report final; it waits for the human.
 
 ## Report
 
