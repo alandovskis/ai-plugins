@@ -13,7 +13,11 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | prd-to-jira | Jira epic/stories from a PRD |
 | issue-tracker | Jira (Atlassian MCP) or GitHub Issues (`gh`), whichever the project uses |
 | review-code | Code review through maintainability, efficiency, correctness, observability, scalability and security lenses, plus UX (accessibility, responsive, theming, via impeccable audit) for web UI |
-| create-pr | Review with review-code, fix, open the PR, watch CI, merge |
+| create-pr | Review with review-code, fix, open the PR, watch CI, merge (or stop at an open, green PR when asked) |
+| issue-flow | Entry point of the issue-to-deploy flow: takes a repo's GitHub issues through judging, implementing, evidence and a PR, then merges approved PRs and watches the deploy |
+| issue-queue | Picks the next issue by the configured priority, within the caps (read-only) |
+| issue-feasibility | Judges whether one issue can be built and exercised without a person, and labels it feasible, needs-review or needs-setup |
+| issue-evidence | Exercises the change, captures screenshots or logs, has them reviewed and returns a block for the PR body |
 | bilingual-apps | Apps are bilingual EN/FR: externalised strings, locale formatting, parity checks |
 | web-stack | Web apps use Rust / WebAssembly |
 | ci | Use GitHub Actions for CI/CD |
@@ -153,7 +157,36 @@ implement-prd, prd-to-jira) need an Atlassian MCP connector exposing `getAccessi
 subagents where the runtime supports them, and can run them sequentially otherwise.
 
 Evals: `evals/<skill>-<n>/` in the `claude plugin eval` format (see `AGENTS.md` at the repo root); present for
-`bilingual-apps`, `ci`, `design-doc`, `issue-tracker`, `review-code`, `review-design-doc` and `web-stack`.
+`bilingual-apps`, `ci`, `create-pr`, `design-doc`, `issue-evidence`, `issue-feasibility`, `issue-flow`, `issue-queue`,
+`issue-tracker`, `review-code`, `review-design-doc` and `web-stack`.
 
-Not included (Claude-specific, not skills): rules, routines, settings, agent definitions. The one exception is the
-Claude Code hooks module above, which other runtimes ignore.
+Not included (Claude-specific, not skills): rules, routines, settings. The exceptions are the Claude Code hooks module
+above and the three agents in `agents/` (`feasibility-judge`, `implementer`, `evidence-reviewer`, used by the issue
+flow), which other runtimes ignore.
+
+## Issue-to-deploy flow: GitHub App setup
+
+The `issue-flow` skill acts on GitHub as a GitHub App installation, not as you. Set the App up once:
+
+1. Create a GitHub App (Settings > Developer settings > GitHub Apps). Give it these repository permissions:
+   Contents, Pull requests and Issues: read and write; Actions and Checks: read.
+2. Generate a private key for it and store the `.pem` outside any repository.
+3. Install the App on the chosen repositories only.
+4. In each target repo, write `.github/issue-flow.json` (priority labels, label names, the App's ID, installation ID
+   and key path, how to run the app, how to capture evidence, the deploy workflow). The schema is in
+   [`issue-flow/config.md`](issue-flow/config.md); the skill validates it before it does anything else.
+5. From inside the target repo, ask Claude to run the issue flow, which invokes the `issue-flow` skill.
+
+How it behaves:
+
+- The human decides at two points only: escalated issues, and PR approval. An approving review from an `OWNER`,
+  `MEMBER` or `COLLABORATOR` who is neither a bot nor the PR's author is the approval; the flow then merges and
+  watches the deploy.
+- At most 3 PRs await review and at most 3 issues are being implemented at once.
+- Evidence images and logs are pushed to the `issue-flow-evidence` branch, never to the PR branch.
+- `token-cli.js` is plain ESM with no `package.json` beside it, so Node must detect ESM syntax (20.19+ or 22.7+).
+
+Accepted limits:
+
+- Commits keep your local git identity; the App's bot is not named as author.
+- The flow finds its own PRs by branch name (`issue/<n>-*`) and an author of type `Bot`, not by the App's login.
