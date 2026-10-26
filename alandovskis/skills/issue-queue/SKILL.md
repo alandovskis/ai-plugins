@@ -17,18 +17,18 @@ Once an issue is chosen, announce it again with its number (`issue=<n>`).
 
 Work is capped so reviews do not pile up. Another issue may start only while **both** hold:
 
-- fewer than **3 awaiting review**: open flow PRs, not merged, whose `reviewDecision` is not `APPROVED`
-- fewer than **3 implementing**: open issues that have a linked branch named `issue/<n>-*` with no PR of any author, in any state, on its own head
+- fewer than **3 awaiting review**: every open flow PR counts, approved or not (an approved PR still waits on the human until it merges; merged PRs leave the count, and the orchestrator merges approved, mergeable PRs before it picks)
+- fewer than **3 implementing**: `issue/<n>-*` branches that would be resumed: no PR of any author, in any state, on the branch's own head, and its issue is open and carries none of `labels.needsReview`, `labels.needsSetup` or `labels.deployFailed`
 
 A **flow PR** is a PR, in any state, whose head branch is `issue/<n>-*` and whose REST author `user.type` is `Bot` (the App); a PR on an `issue/*` head opened by a person is not a flow PR and never counts as awaiting review. Branch-level checks are different: a branch "has a PR" when its own head has a PR of **any author in any state**, so a person's branch with their PR is never counted as implementing. Every other "PR" below means a flow PR.
 
 ```
 gh api --paginate 'repos/{owner}/{repo}/pulls?state=all&per_page=100' --jq '.[] | {number, head: .head.ref, type: .user.type, state, merged_at}'
-gh pr list --state all --limit 500 --json number,state,headRefName,body,reviewDecision
+gh issue list --state all --limit 500 --json number,state,labels
 git ls-remote --heads origin 'issue/*'
 ```
 
-Find the flow PRs by branch and author type, not by `@me` (an installation token may not resolve it). Count the open flow PRs whose `reviewDecision` is anything but `APPROVED` (including empty). Count each `issue/<n>-*` branch that has no PR at all (any author; open, merged or closed) on its own head: a branch left behind by a merged or closed PR, including one the flow closed, is not being implemented. If either count is 3 or more, the queue is **paused**: say so, name the cap that was hit, and return **none** without picking. An approved PR no longer counts as awaiting review.
+Find the flow PRs by branch and author type, not by `@me` (an installation token may not resolve it). Count the open flow PRs. Count each `issue/<n>-*` branch that has no PR at all (any author; open, merged or closed) on its own head and whose issue is open without needs-review, needs-setup or deploy-failed: a branch left behind by a merged or closed PR, including one the flow closed, or one whose issue is closed or waits on a person, is not being implemented. If either count is 3 or more, the queue is **paused**: say so, name the cap that was hit, and return **none** without picking.
 
 ## Pick the next issue
 
@@ -38,7 +38,7 @@ Only when capacity allows.
 
    ```
    gh issue list --state open --json number,title,labels,createdAt,assignees
-   gh pr list --state all --limit 500 --json number,state,headRefName,body,reviewDecision
+   gh pr list --state all --limit 500 --json number,state,headRefName,body
    ```
 
 2. Skip an issue when any of these is true:
