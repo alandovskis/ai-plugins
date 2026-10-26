@@ -156,9 +156,8 @@ implement-prd, prd-to-jira) need an Atlassian MCP connector exposing `getAccessi
 `getConfluencePage`, `createJiraIssue`, etc. `implement-prd` uses read-only
 subagents where the runtime supports them, and can run them sequentially otherwise.
 
-Evals: `evals/<skill>-<n>/` in the `claude plugin eval` format (see `AGENTS.md` at the repo root); present for
-`bilingual-apps`, `ci`, `create-pr`, `design-doc`, `issue-evidence`, `issue-feasibility`, `issue-flow`, `issue-queue`,
-`issue-tracker`, `review-code`, `review-design-doc` and `web-stack`.
+Evals: `evals/<skill>-<n>/` in the `claude plugin eval` format (see `AGENTS.md` at the repo root); every skill has
+them.
 
 Not included (Claude-specific, not skills): rules, routines, settings. The exceptions are the Claude Code hooks module
 above and the three agents in `agents/` (`feasibility-judge`, `implementer`, `evidence-reviewer`, used by the issue
@@ -169,9 +168,11 @@ flow), which other runtimes ignore.
 The `issue-flow` skill acts on GitHub as a GitHub App installation, not as you. Set the App up once:
 
 1. Create a GitHub App (Settings > Developer settings > GitHub Apps). Give it these repository permissions:
-   Contents, Pull requests and Issues: read and write; Actions and Checks: read.
+   Contents, Pull requests and Issues: read and write; Actions and Checks: read. A change that touches
+   `.github/workflows/` also needs Workflows: read and write, or its push is rejected.
 2. Generate a private key for it and store the `.pem` outside any repository.
-3. Install the App on the chosen repositories only.
+3. Install the App on the chosen repositories only. On each, protect the default branch with a rule that requires an
+   approving review, so GitHub itself refuses a merge without one, whatever the flow does.
 4. In each target repo, write `.github/issue-flow.json` (priority labels, label names, the App's ID, installation ID
    and key path, how to run the app, how to capture evidence, the deploy workflow). The schema is in
    [`issue-flow/config.md`](issue-flow/config.md); the skill validates it before it does anything else.
@@ -183,7 +184,9 @@ How it behaves:
   `MEMBER` or `COLLABORATOR` who is neither a bot nor the PR's author is the approval; the flow then merges and
   watches the deploy.
 - At most 3 PRs await review and at most 3 issues are being implemented at once.
-- Evidence images and logs are pushed to the `issue-flow-evidence` branch, never to the PR branch.
+- Evidence images and logs are pushed to the `issue-flow-evidence` branch, never to the PR branch. The PR links them as
+  `https://github.com/<owner>/<repo>/raw/issue-flow-evidence/...`, which should render for viewers with access to the
+  repo; this has not been checked on a private repo.
 - `token-cli.js` is plain ESM with no `package.json` beside it, so Node must detect ESM syntax (20.19+ or 22.7+).
 
 Accepted limits:

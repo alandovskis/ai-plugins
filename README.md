@@ -6,9 +6,9 @@ code review, an issue-to-deploy flow that takes GitHub issues to merged, deploye
 `/flow` sidebar showing the conversation flow, and panels above the prompt showing the session, the issues in flight
 and what subagents are doing.
 
-These skills are opinionated and built around my own workflow. They assume, for example, Jira and Confluence for
-requirements and issues (through an Atlassian MCP connector), GitHub Actions for CI, Rust/WebAssembly for web apps
-and English/French bilingual apps. Fork and edit them to suit yours.
+These skills are opinionated and built around my own workflow. They assume, for example, Confluence for
+requirements and Jira or GitHub Issues for issues (Atlassian through an MCP connector), GitHub Actions for CI,
+Rust/WebAssembly for web apps and English/French bilingual apps. Fork and edit them to suit yours.
 
 ## Prerequisites
 
