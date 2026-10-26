@@ -62,17 +62,11 @@ const EMPTY = 'No subagents';
 // The title's spaces either side, and the frame's corner, border and padding
 // either side of it.
 const TITLE_CHROME = 2 + 4;
-// The band's tree, saying there are no subagents when none is shown, or
-// undefined when the frame has no row inside it. `place` is the session's: the
-// title shows it, and an entry shows its own only where it differs, as in a
-// worktree of its own.
-export const bandView = ({ Box, Text }, runs, at, place, room) => {
-    const maxRows = room.maxRows - FRAME_ROWS;
-    if (maxRows < 1)
-        return undefined;
+// What the band shows in `maxRows` rows inside its frame: running subagents
+// first, each group in the order they started; then as many entries as the
+// rows allow, a row kept for the rest's count.
+const layout = (runs, at, maxRows) => {
     const visible = runs.filter(run => isShown(run, at));
-    // Running subagents first, each group in the order they started; then as
-    // many entries as the frame's rows allow, a row kept for the rest's count.
     const ordered = [
         ...visible.filter(run => run.status === 'running'),
         ...visible.filter(run => run.status !== 'running'),
@@ -86,7 +80,25 @@ export const bandView = ({ Box, Text }, runs, at, place, room) => {
         shown.push(run);
         rows += rowsOf(run);
     }
-    const more = ordered.length - shown.length;
+    return { isEmpty: visible.length === 0, shown, rows, more: ordered.length - shown.length };
+};
+// The rows the band takes, frame included: 0 when it has no row inside it.
+export const bandRows = (runs, at, maxRows) => {
+    const inside = maxRows - FRAME_ROWS;
+    if (inside < 1)
+        return 0;
+    const { isEmpty, rows, more } = layout(runs, at, inside);
+    return FRAME_ROWS + (isEmpty ? 1 : rows + (more > 0 ? 1 : 0));
+};
+// The band's tree, saying there are no subagents when none is shown, or
+// undefined when the frame has no row inside it. `place` is the session's: the
+// title shows it, and an entry shows its own only where it differs, as in a
+// worktree of its own.
+export const bandView = ({ Box, Text }, runs, at, place, room) => {
+    const maxRows = room.maxRows - FRAME_ROWS;
+    if (maxRows < 1)
+        return undefined;
+    const { isEmpty, shown, more } = layout(runs, at, maxRows);
     const entry = (run) => {
         const mark = RUN_MARKS[run.status];
         const time = duration((run.endedAt ?? at) - run.startedAt);
@@ -123,7 +135,7 @@ export const bandView = ({ Box, Text }, runs, at, place, room) => {
           {where}{' '}
         </Text>
       </Box>
-      {visible.length === 0 ? (<Text dimColor wrap="truncate-end">
+      {isEmpty ? (<Text dimColor wrap="truncate-end">
           {EMPTY}
         </Text>) : (shown.map(entry))}
       {more > 0 ? <Text dimColor>+{more} more</Text> : null}

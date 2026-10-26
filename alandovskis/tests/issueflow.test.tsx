@@ -53,6 +53,22 @@ const toggle = ($: Engine, command: 'issues' | 'subagents') =>
 
 const start = ($: Engine) => $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
 
+// The engine raising agent.spawn for an Explore subagent on Haiku 5.5.
+const spawn = ($: Engine, description: string) =>
+  $.agent.spawn({
+    tool_use_id: `tu-${description}`,
+    prompt: 'x',
+    description,
+    subagentType: 'Explore',
+    provider: { plugin: 'engine', tier: 'core' },
+    parentModel: 'm',
+    background: false,
+    fork: false,
+  })
+
+const bandLines = async ($: Engine, surface: (typeof SURFACES)[number], maxRows?: number) =>
+  rowsIn(await boxElements($, surface, 'subagents', maxRows))
+
 // The engine's side: Bash answers an `echo "..."` with what it echoes, after
 // a line of its own, and any other tool answers `ok`; the store is in memory,
 // the session works outside git, and beneath the panel the engine draws an
@@ -73,6 +89,8 @@ const engine = (on: On) => {
 
     return <Box />
   })
+  let next = 0
+  on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: `a${++next}` }))
   on('tool.call', (_$, e) => {
     const echoed = e.tool === 'Bash' && 'command' in e ? /^echo "(.*)"$/.exec(String(e.command))?.[1] : undefined
     const text = echoed === undefined ? 'ok' : `working…\n${echoed}\n`
@@ -99,6 +117,13 @@ test("stepped moves an issue on: its step, what it waits on, and since when, in 
   expect(waiting).toEqual([run(3, 'awaiting-approval', 10, 'approving review on PR #9'), run(7, 'implementing', 1)])
   expect(stepped(waiting, { issue: 3, step: 'merging' }, 20)).toEqual([run(3, 'merging', 20), run(7, 'implementing', 1)])
   expect(list).toEqual([run(3, 'judging', 0), run(7, 'implementing', 1)])
+})
+
+test('stepped keeps the time of a step announced again, and takes what it waits on now', () => {
+  const list = [run(3, 'awaiting-approval', 10, 'approving review on PR #9'), run(7, 'implementing', 1)]
+  const again = stepped(list, { issue: 3, step: 'awaiting-approval', waitingOn: 'approving review on PR #9 (new commit)' }, 50)
+  expect(again).toEqual([run(3, 'awaiting-approval', 10, 'approving review on PR #9 (new commit)'), run(7, 'implementing', 1)])
+  expect(stepped(list, { issue: 3, step: 'awaiting-approval' }, 50)).toEqual([run(3, 'awaiting-approval', 10), run(7, 'implementing', 1)])
 })
 
 test('the panel says no issues are in flight while the flow has announced none', async ($, on) => {
@@ -152,6 +177,26 @@ test("a new step replaces the issue's last, and its time starts over", async ($,
   await clock.advance(2_000)
   for (const surface of SURFACES) {
     expect(await issueLines($, surface)).toEqual(['⇢ #7 evidence 2s'])
+  }
+})
+
+test('a step announced again on each pass keeps counting from when it began', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  engine(on)
+  await start($)
+
+  await announce($, 'issue-flow: step issue=7 step=awaiting-approval waiting=approving review on PR #34')
+  await clock.advance(90_000)
+  await announce($, 'issue-flow: step issue=7 step=awaiting-approval waiting=approving review on PR #34')
+  await clock.advance(5_000)
+  for (const surface of SURFACES) {
+    expect(await issueLines($, surface)).toEqual(['◆ #7 awaiting-approval · approving review on PR #34 1m 35s'])
+  }
+
+  await announce($, 'issue-flow: step issue=7 step=merging')
+  await clock.advance(2_000)
+  for (const surface of SURFACES) {
+    expect(await issueLines($, surface)).toEqual(['⇢ #7 merging 2s'])
   }
 })
 
@@ -270,5 +315,45 @@ test('/clear empties the panel', async ($, on) => {
 
   for (const surface of SURFACES) {
     expect(await issueLines($, surface)).toEqual(['No issues in flight'])
+  }
+})
+
+test('an empty issue panel yields its rows to a band with subagents in it', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  engine(on)
+  await start($)
+  await spawn($, 'Find callers')
+
+  // Seven rows: the session panel takes three, the band its frame and its
+  // entry's two, and the issue panel finds no room.
+  for (const surface of SURFACES) {
+    expect(await bandLines($, surface, 7)).toEqual([' Haiku 5.5  ⇢ Explore 0s · 0 calls', 'Find callers'])
+    expect(await boxElements($, surface, 'issues', 7)).toEqual([])
+  }
+  // Given three more, the empty issue panel shows in them.
+  for (const surface of SURFACES) {
+    expect(await issueLines($, surface, 10)).toEqual(['No issues in flight'])
+    expect(await bandLines($, surface, 10)).toEqual([' Haiku 5.5  ⇢ Explore 0s · 0 calls', 'Find callers'])
+  }
+})
+
+test('an issue panel with issues in it comes before the band, which gets the rows left', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  engine(on)
+  await start($)
+  await spawn($, 'Find callers')
+  for (let issue = 1; issue <= 8; issue++) await announce($, `issue-flow: step issue=${issue} step=judging`)
+
+  // The session panel takes three rows; the issue panel its frame, six
+  // entries and the count of the rest, nine; the band the four left.
+  const issues = [1, 2, 3, 4, 5, 6].map(issue => `⇢ #${issue} judging 0s`)
+  for (const surface of SURFACES) {
+    expect(await issueLines($, surface, 16)).toEqual([...issues, '+2 more'])
+    expect(await bandLines($, surface, 16)).toEqual([' Haiku 5.5  ⇢ Explore 0s · 0 calls', 'Find callers'])
+  }
+  // One row fewer, and the band's one row left holds only its count.
+  for (const surface of SURFACES) {
+    expect(await issueLines($, surface, 15)).toEqual([...issues, '+2 more'])
+    expect(await bandLines($, surface, 15)).toEqual(['+1 more'])
   }
 })

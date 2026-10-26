@@ -19,17 +19,21 @@ const markOf = (step) => {
     return HUMAN_STEPS.has(step) ? { glyph: '◆', color: 'warning' } : { glyph: '⇢', color: 'claude' };
 };
 export const isShown = (run, at) => run.step !== 'done' || at - run.since < LINGER_MS;
-// The issue at its new step, in its place; one not seen before goes last.
+// The issue at the step a marker announced, in its place; one not seen before
+// goes last. A step announced again, as the flow does each pass while an issue
+// waits, keeps its time and takes only what it waits on now.
 export const stepped = (list, found, at) => {
-    const run = {
+    const runOf = (since) => ({
         issue: found.issue,
         step: found.step,
-        since: at,
+        since,
         ...(found.waitingOn === undefined ? {} : { waitingOn: found.waitingOn }),
-    };
-    return list.some(one => one.issue === found.issue)
-        ? list.map(one => (one.issue === found.issue ? run : one))
-        : [...list, run];
+    });
+    const current = list.find(one => one.issue === found.issue);
+    if (current === undefined)
+        return [...list, runOf(at)];
+    const run = runOf(current.step === found.step ? current.since : at);
+    return list.map(one => (one === current ? run : one));
 };
 const TITLE = 'Issues';
 const EMPTY = 'No issues in flight';

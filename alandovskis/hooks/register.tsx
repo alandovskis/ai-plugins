@@ -11,6 +11,7 @@ import { AGENT_TOOLS, clip, detailOf, firstLine, statusOf } from './shared'
 import {
   LABEL_MAX,
   TEXT_MAX,
+  bandRows,
   bandView,
   called,
   ended,
@@ -380,20 +381,31 @@ export const register: Register = on => {
   )
 
   // The session panel on top, the issue panel under it, and the subagent band
-  // under both in the rows left.
+  // under both. The session panel takes its rows first; then an issue panel
+  // with issues in it, and the band the rows left; but an empty issue panel
+  // yields to a band with subagents in it, taking the rows the band leaves.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
     const ui = $.ui.resolve(e)
     const at = await read($, now)
     const panel = sessionView(ui, await read($, figures), e.props.bodyColumns)
-    const issueRoom = { ...e.props, maxRows: e.props.maxRows - (panel === undefined ? 0 : PANEL_ROWS) }
+    const rest = e.props.maxRows - (panel === undefined ? 0 : PANEL_ROWS)
     const issueList = await read($, issueRuns)
+    const runList = await read($, runs)
     const isIssuesShown = !(await read($, isIssuesHidden))
-    const issues = isIssuesShown ? issueView(ui, issueList, at, issueRoom) : undefined
-    const room = { ...issueRoom, maxRows: issueRoom.maxRows - (isIssuesShown ? issueRows(issueList, at, issueRoom.maxRows) : 0) }
-    const band = (await read($, isBandHidden))
-      ? undefined
-      : bandView(ui, await read($, runs), at, await read($, place), room)
+    const isBandShown = !(await read($, isBandHidden))
+    const isIssuesFirst = issueList.some(run => isIssueShown(run, at)) || !runList.some(run => isShown(run, at))
+    let issueRoom = rest
+    let bandRoom = rest
+    if (isIssuesFirst) {
+      bandRoom -= isIssuesShown ? issueRows(issueList, at, rest) : 0
+    } else {
+      issueRoom -= isBandShown ? bandRows(runList, at, rest) : 0
+    }
+    const issues = isIssuesShown ? issueView(ui, issueList, at, { ...e.props, maxRows: issueRoom }) : undefined
+    const band = isBandShown
+      ? bandView(ui, runList, at, await read($, place), { ...e.props, maxRows: bandRoom })
+      : undefined
     if (panel === undefined && issues === undefined && band === undefined) return next(e)
     const { Box } = ui
 

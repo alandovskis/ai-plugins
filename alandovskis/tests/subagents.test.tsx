@@ -4,8 +4,7 @@ import type { On } from 'claude-code'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
-// Rows above the prompt; the empty issue panel over the band takes three.
-const band = (maxRows = 15) =>
+const band = (maxRows = 12) =>
   ({
     component: 'AbovePrompt',
     viewport: { columns: 120, rows: 40, isFullscreen: true },
@@ -226,7 +225,7 @@ test('each model family has a badge colour of its own, and is named as Anthropic
   }
 
   for (const surface of SURFACES) {
-    const badges = (await boxElements($, surface, 'subagents', 19)).filter(one => one.props?.color === 'inverseText')
+    const badges = (await boxElements($, surface, 'subagents', 16)).filter(one => one.props?.color === 'inverseText')
     expect(badges.map(one => [textOf(one), one.props?.backgroundColor])).toEqual([
       [' Opus 5.5 ', 'claude'],
       [' Sonnet 5.5 ', 'suggestion'],
@@ -276,19 +275,17 @@ test('running subagents come first, and the band keeps to its room', async ($, o
   await finish($, 'a1')
 
   for (const surface of SURFACES) {
-    // The session panel and the empty issue panel over the band take three
-    // rows each of the 22.
-    const lines = await bandLines($, surface, 22)
+    // The session panel over the band takes three rows of the band's 19.
+    const lines = await bandLines($, surface, 19)
     expect(lines.slice(0, 12)).toEqual([2, 3, 4, 5, 6, 7].flatMap(n => [` Haiku 5.5  ⇢ Explore ${9 - n}s · 0 calls`, `task ${n}`]))
     expect(lines.at(-1)).toBe('+2 more')
     expect(lines).toHaveLength(13)
   }
 
-  // Given thirteen rows, the session panel and the issue panel take three
-  // each and the frame two, and the band draws two entries of two rows each
-  // and the count of the rest.
+  // Given ten rows, the session panel takes three and the frame two, and the
+  // band draws two entries of two rows each and the count of the rest.
   for (const surface of SURFACES) {
-    expect(await bandLines($, surface, 13)).toEqual([
+    expect(await bandLines($, surface, 10)).toEqual([
       ' Haiku 5.5  ⇢ Explore 7s · 0 calls',
       'task 2',
       ' Haiku 5.5  ⇢ Explore 6s · 0 calls',

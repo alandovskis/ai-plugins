@@ -82,11 +82,15 @@ flight, from the step markers its skills echo (`issue-flow: step issue=<n> step=
 ╰───────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-- Each row: the issue's number, its step, what it waits on, and how long since its step began.
+- Each row: the issue's number, its step, what it waits on, and how long it has been at that step. A step the flow
+  announces again on a later pass keeps its time and takes what it waits on now; a new step starts the time over.
 - Issues waiting on the human come first (`◆` awaiting approval or escalated, `✗` a failed deploy), then the
   ones the flow is working on (`⇢`), each group in the order announced. `✓` done stays for 30 seconds.
+- Failed and escalated entries stay until the issue's next marker, or `/clear`; the panel only shows them and acts on
+  nothing.
 - It shows at most six, as many as its rows allow, and counts the rest (`+2 more`). It says `No issues in flight`
-  when none is, and empties on `/clear` and `/resume`.
+  when none is, and empties on `/clear` and `/resume`. Empty, it yields its rows to a subagent band with subagents in
+  it; with issues in it, it comes first and the band takes the rows left.
 
 `/issues` hides the panel, and shows it again; the choice is kept across sessions.
 
