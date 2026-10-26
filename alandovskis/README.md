@@ -23,8 +23,9 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 
 ## Mods (Claude Code only)
 
-A Claude Code hooks module: `hooks/register.tsx` wires each event to the two features, whose state changes and
-drawing live in `hooks/flow.tsx` and `hooks/subagents.tsx`; the state contract is in `types/` and the tests in `tests/`.
+A Claude Code hooks module: `hooks/register.tsx` wires each event to the features, whose state changes and
+drawing live in `hooks/flow.tsx`, `hooks/session.tsx`, `hooks/issueflow.tsx` and `hooks/subagents.tsx`; the state
+contract is in `types/` and the tests in `tests/`.
 
 **Conversation flow:** `/flow` toggles a sidebar that shows the conversation one line per event:
 
@@ -68,6 +69,26 @@ band, and shows the session's figures as the status line has them:
 - A figure the session has none for is left out: the context before the first response, the rate limits off a
   subscription. The figures are read every second, so a `/model` switch shows within a second.
 - It yields the band to a survey, as the subagent band does. `/subagents` hides only the subagent band.
+
+**Issue panel:** a framed panel titled "Issues" under the session panel lists every issue the `issue-flow` skill has in
+flight, from the step markers its skills echo (`issue-flow: step issue=<n> step=<step> waiting=<text>`, read from
+`Bash` output; the hook only reads it):
+
+```
+╭─ Issues ──────────────────────────────────────────────────────────────────────────────────╮
+│ ◆ #8 awaiting-approval · approving review on PR #34 2m 10s                                │
+│ ✗ #4 failed · deploy failed: https://github.com/o/r/actions/runs/1 40s                    │
+│ ⇢ #7 implementing 12s                                                                     │
+╰───────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+- Each row: the issue's number, its step, what it waits on, and how long since its step began.
+- Issues waiting on the human come first (`◆` awaiting approval or escalated, `✗` a failed deploy), then the
+  ones the flow is working on (`⇢`), each group in the order announced. `✓` done stays for 30 seconds.
+- It shows at most six, as many as its rows allow, and counts the rest (`+2 more`). It says `No issues in flight`
+  when none is, and empties on `/clear` and `/resume`.
+
+`/issues` hides the panel, and shows it again; the choice is kept across sessions.
 
 **Subagent band:** while subagents run, a framed band titled "Subagents" under the session panel shows what each
 one is doing:

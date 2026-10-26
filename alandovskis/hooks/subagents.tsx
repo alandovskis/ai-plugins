@@ -2,7 +2,7 @@ import type { Color, Elements, ModelUsage, RenderSurface } from 'claude-code'
 
 import type { FlowStatus, Place, RunStatus, SubagentCall, SubagentRun } from '../types'
 import { gauge, percentOf } from './gauge'
-import { MARKS, clip, modelColor, modelName } from './shared'
+import { MARKS, clip, duration, modelColor, modelName } from './shared'
 
 // The band above the prompt: what each subagent is doing, while it runs and
 // for a short while after. What is here is pure: how the runs change, and how
@@ -78,12 +78,6 @@ export const placeOf = (top: string, branch: string): Place => ({
 const samePlace = (one: Place, other: Place) => one.worktree === other.worktree && one.branch === other.branch
 
 const placeText = ({ worktree, branch }: Place) => `${worktree} ⎇ ${branch}`
-
-const duration = (ms: number) => {
-  const seconds = Math.max(0, Math.floor(ms / 1000))
-
-  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
-}
 
 const callCount = (calls: number) => `${calls} ${calls === 1 ? 'call' : 'calls'}`
 

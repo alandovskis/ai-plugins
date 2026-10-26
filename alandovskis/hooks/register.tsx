@@ -2,7 +2,10 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { FlowNode, FlowStatus, Place, RunStatus, SubagentCall } from '../types'
+import { parseStep } from '../issue-flow/step'
+import type { FoundStep } from '../issue-flow/step'
 import { appended, changed, flowView, seconds, withSpawn } from './flow'
+import { TEXT_MAX as WAITING_MAX, isShown as isIssueShown, issueRows, issueView, stepped } from './issueflow'
 import { PANEL_ROWS, gaugeOf, sameGauge, sessionView } from './session'
 import { AGENT_TOOLS, clip, detailOf, firstLine, statusOf } from './shared'
 import {
@@ -22,7 +25,7 @@ import {
 
 // Each event is hooked once here and fed to the features: the /flow sidebar
 // (flow.tsx), and above the prompt the session panel (session.tsx) over the
-// subagent band (subagents.tsx). Every
+// issue panel (issueflow.tsx) over the subagent band (subagents.tsx). Every
 // call on `$` is made in this file, as the engine follows `$` no further.
 //
 // The hooks only observe, so they carry no .catch: one that fails is skipped,
@@ -33,6 +36,7 @@ import {
 const PANE = 'conversation-flow'
 const PANE_TITLE = 'Flow'
 const BAND_COMMAND = 'subagents'
+const ISSUES_COMMAND = 'issues'
 
 const nodes = atom({ plugin: 'alandovskis', key: 'flowNodes' } as const, [])
 const runs = atom({ plugin: 'alandovskis', key: 'subagentRuns' } as const, [])
@@ -40,9 +44,13 @@ const now = atom({ plugin: 'alandovskis', key: 'subagentsNow' } as const, 0)
 const isBandHidden = atom({ plugin: 'alandovskis', key: 'subagentsHidden' } as const, false)
 const place = atom({ plugin: 'alandovskis', key: 'subagentsPlace' } as const, null)
 const figures = atom({ plugin: 'alandovskis', key: 'sessionGauge' } as const, null)
+const issueRuns = atom({ plugin: 'alandovskis', key: 'issueRuns' } as const, [])
+const isIssuesHidden = atom({ plugin: 'alandovskis', key: 'issuesHidden' } as const, false)
 
-// Where the person's choice to hide the band is kept across sessions.
+// Where the person's choice to hide the band, or the issue panel, is kept
+// across sessions.
 const BAND_HIDDEN_KEY = 'subagentsHidden'
+const ISSUES_HIDDEN_KEY = 'issuesHidden'
 const TICK_MS = 1_000
 const GIT_TOP = ['git', 'rev-parse', '--show-toplevel']
 const GIT_BRANCH = ['git', 'branch', '--show-current']
@@ -124,27 +132,42 @@ const readFigures = async ($: EngineInterface) => {
   if (!sameGauge(await read($, figures), found)) await update($, figures, () => found)
 }
 
-// Moves the clock the band draws its times from, and drops finished runs
-// whose time is up; it writes only while the band has something to show.
+// Moves the clock the band and the issue panel draw their times from, and
+// drops finished runs and done issues whose time is up; it writes only while
+// one of them has something to show.
 const tick = async ($: EngineInterface) => {
-  const list = await read($, runs)
-  if (list.length === 0) return
+  const [list, issues] = await Promise.all([read($, runs), read($, issueRuns)])
+  if (list.length === 0 && issues.length === 0) return
   const at = await $.clock.now()
   await update($, now, () => at)
   if (list.some(run => !isShown(run, at))) await update($, runs, all => all.filter(run => isShown(run, at)))
+  if (issues.some(run => !isIssueShown(run, at))) {
+    await update($, issueRuns, all => all.filter(run => isIssueShown(run, at)))
+  }
+}
+
+// An issue's step from a marker the flow echoed, timed by the engine's clock.
+const recordStep = async ($: EngineInterface, found: FoundStep) => {
+  const at = await $.clock.now()
+  const step = found.waitingOn === undefined ? found : { ...found, waitingOn: clip(found.waitingOn, WAITING_MAX) }
+  await update($, issueRuns, list => stepped(list, step, at))
+  await update($, now, () => at)
 }
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'flow', description: 'Toggle the conversation flow sidebar' })
     await $.command.register({ name: BAND_COMMAND, description: 'Hide or show the subagent band above the prompt' })
+    await $.command.register({ name: ISSUES_COMMAND, description: 'Hide or show the issue panel above the prompt' })
     const stored = await $.store.get(BAND_HIDDEN_KEY)
     await update($, isBandHidden, () => stored === true)
+    const issuesStored = await $.store.get(ISSUES_HIDDEN_KEY)
+    await update($, isIssuesHidden, () => issuesStored === true)
     void landed($, "reading the session's place", readSessionPlace($, e.cwd))
     void landed($, "reading the session's figures", readFigures($))
     // Runs until the module reloads, which raises session.start again.
     $.clock.every(TICK_MS, () => {
-      void landed($, 'a subagent band tick', tick($))
+      void landed($, 'a band and issue panel tick', tick($))
       void landed($, "rereading the session's figures", readFigures($))
     })
 
@@ -170,11 +193,20 @@ export const register: Register = on => {
     return { text: hidden ? 'Subagent band hidden.' : 'Subagent band shown.' }
   })
 
+  on('command.run', { command: ISSUES_COMMAND }, async $ => {
+    const hidden = !(await read($, isIssuesHidden))
+    await update($, isIssuesHidden, () => hidden)
+    await $.store.set(ISSUES_HIDDEN_KEY, hidden)
+
+    return { text: hidden ? 'Issue panel hidden.' : 'Issue panel shown.' }
+  })
+
   on('session.end', async ($, e, next) => {
     // /clear and /resume put another conversation in this one's place.
     if (e.reason === 'clear' || e.reason === 'resume') {
       await update($, nodes, () => [])
       await update($, runs, () => [])
+      await update($, issueRuns, () => [])
       placeReads.clear()
     }
 
@@ -235,6 +267,9 @@ export const register: Register = on => {
     try {
       const ran = await next(e)
       status = statusOf(ran)
+      // The issue flow's step marker, echoed by its skills: read, never changed.
+      const found = e.tool === 'Bash' ? parseStep(ran.text ?? '') : null
+      if (found !== null) await landed($, `recording issue #${found.issue}'s step`, recordStep($, found))
 
       return ran
     } finally {
@@ -344,21 +379,28 @@ export const register: Register = on => {
     flowView($.ui.resolve(e), await read($, nodes), e.props.bodyColumns),
   )
 
-  // The session panel on top, the subagent band under it in the rows left.
+  // The session panel on top, the issue panel under it, and the subagent band
+  // under both in the rows left.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
     const ui = $.ui.resolve(e)
+    const at = await read($, now)
     const panel = sessionView(ui, await read($, figures), e.props.bodyColumns)
-    const room = { ...e.props, maxRows: e.props.maxRows - (panel === undefined ? 0 : PANEL_ROWS) }
+    const issueRoom = { ...e.props, maxRows: e.props.maxRows - (panel === undefined ? 0 : PANEL_ROWS) }
+    const issueList = await read($, issueRuns)
+    const isIssuesShown = !(await read($, isIssuesHidden))
+    const issues = isIssuesShown ? issueView(ui, issueList, at, issueRoom) : undefined
+    const room = { ...issueRoom, maxRows: issueRoom.maxRows - (isIssuesShown ? issueRows(issueList, at, issueRoom.maxRows) : 0) }
     const band = (await read($, isBandHidden))
       ? undefined
-      : bandView(ui, await read($, runs), await read($, now), await read($, place), room)
-    if (panel === undefined && band === undefined) return next(e)
+      : bandView(ui, await read($, runs), at, await read($, place), room)
+    if (panel === undefined && issues === undefined && band === undefined) return next(e)
     const { Box } = ui
 
     return (
       <Box key="above-prompt" flexDirection="column">
         {panel}
+        {issues}
         {band}
       </Box>
     )

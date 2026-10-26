@@ -1,5 +1,5 @@
 import { gauge, percentOf } from './gauge';
-import { MARKS, clip, modelColor, modelName } from './shared';
+import { MARKS, clip, duration, modelColor, modelName } from './shared';
 // The band above the prompt: what each subagent is doing, while it runs and
 // for a short while after. What is here is pure: how the runs change, and how
 // they are drawn. register.tsx wires it to the events.
@@ -54,27 +54,25 @@ export const placeOf = (top, branch) => ({
 });
 const samePlace = (one, other) => one.worktree === other.worktree && one.branch === other.branch;
 const placeText = ({ worktree, branch }) => `${worktree} ⎇ ${branch}`;
-const duration = (ms) => {
-    const seconds = Math.max(0, Math.floor(ms / 1000));
-    return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`;
-};
 const callCount = (calls) => `${calls} ${calls === 1 ? 'call' : 'calls'}`;
 // Rows an entry takes: its own, its task's, and its latest call's while it runs.
 const rowsOf = (run) => 1 + (run.task === '' ? 0 : 1) + (run.status === 'running' && run.latest !== undefined ? 1 : 0);
 const TITLE = 'Subagents';
+const EMPTY = 'No subagents';
 // The title's spaces either side, and the frame's corner, border and padding
 // either side of it.
 const TITLE_CHROME = 2 + 4;
-// The band's tree, or undefined when it has nothing to show. `place` is the
-// session's: the title shows it, and an entry shows its own only where it
-// differs, as in a worktree of its own.
+// The band's tree, saying there are no subagents when none is shown, or
+// undefined when the frame has no row inside it. `place` is the session's: the
+// title shows it, and an entry shows its own only where it differs, as in a
+// worktree of its own.
 export const bandView = ({ Box, Text }, runs, at, place, room) => {
-    const visible = runs.filter(run => isShown(run, at));
-    if (visible.length === 0)
+    const maxRows = room.maxRows - FRAME_ROWS;
+    if (maxRows < 1)
         return undefined;
+    const visible = runs.filter(run => isShown(run, at));
     // Running subagents first, each group in the order they started; then as
     // many entries as the frame's rows allow, a row kept for the rest's count.
-    const maxRows = room.maxRows - FRAME_ROWS;
     const ordered = [
         ...visible.filter(run => run.status === 'running'),
         ...visible.filter(run => run.status !== 'running'),
@@ -125,7 +123,9 @@ export const bandView = ({ Box, Text }, runs, at, place, room) => {
           {where}{' '}
         </Text>
       </Box>
-      {shown.map(entry)}
+      {visible.length === 0 ? (<Text dimColor wrap="truncate-end">
+          {EMPTY}
+        </Text>) : (shown.map(entry))}
       {more > 0 ? <Text dimColor>+{more} more</Text> : null}
     </Box>);
 };
