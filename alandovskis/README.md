@@ -13,7 +13,11 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | prd-to-jira | Jira epic/stories from a PRD |
 | issue-tracker | Jira (Atlassian MCP) or GitHub Issues (`gh`), whichever the project uses |
 | review-code | Code review through maintainability, efficiency, correctness, observability, scalability and security lenses, plus UX (accessibility, responsive, theming, via impeccable audit) for web UI |
-| create-pr | Review with review-code, fix, open the PR, watch CI, merge |
+| create-pr | Review with review-code, fix, open the PR, watch CI, merge (or stop at an open, green PR when asked) |
+| issue-flow | Entry point of the issue-to-deploy flow: takes a repo's GitHub issues through judging, implementing, evidence and a PR, then merges approved PRs and watches the deploy |
+| issue-queue | Picks the next issue by the configured priority, within the caps (read-only) |
+| issue-feasibility | Judges whether one issue can be built and exercised without a person, and labels it feasible, needs-review or needs-setup |
+| issue-evidence | Exercises the change, captures screenshots or logs, has them reviewed and returns a block for the PR body |
 | bilingual-apps | Apps are bilingual EN/FR: externalised strings, locale formatting, parity checks |
 | web-stack | Web apps use Rust / WebAssembly |
 | ci | Use GitHub Actions for CI/CD |
@@ -23,8 +27,9 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 
 ## Mods (Claude Code only)
 
-A Claude Code hooks module: `hooks/register.tsx` wires each event to the two features, whose state changes and
-drawing live in `hooks/flow.tsx` and `hooks/subagents.tsx`; the state contract is in `types/` and the tests in `tests/`.
+A Claude Code hooks module: `hooks/register.tsx` wires each event to the features, whose state changes and
+drawing live in `hooks/flow.tsx`, `hooks/session.tsx`, `hooks/issueflow.tsx` and `hooks/subagents.tsx`; the state
+contract is in `types/` and the tests in `tests/`.
 
 **Conversation flow:** `/flow` toggles a sidebar that shows the conversation one line per event:
 
@@ -68,6 +73,30 @@ band, and shows the session's figures as the status line has them:
 - A figure the session has none for is left out: the context before the first response, the rate limits off a
   subscription. The figures are read every second, so a `/model` switch shows within a second.
 - It yields the band to a survey, as the subagent band does. `/subagents` hides only the subagent band.
+
+**Issue panel:** a framed panel titled "Issues" under the session panel lists every issue the `issue-flow` skill has in
+flight, from the step markers its skills echo (`issue-flow: step issue=<n> step=<step> waiting=<text>`, read from
+`Bash` output; the hook only reads it):
+
+```
+╭─ Issues ──────────────────────────────────────────────────────────────────────────────────╮
+│ ◆ #8 awaiting-approval · approving review on PR #34 2m 10s                                │
+│ ✗ #4 failed · deploy failed: https://github.com/o/r/actions/runs/1 40s                    │
+│ ⇢ #7 implementing 12s                                                                     │
+╰───────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+- Each row: the issue's number, its step, what it waits on, and how long it has been at that step. A step the flow
+  announces again on a later pass keeps its time and takes what it waits on now; a new step starts the time over.
+- Issues waiting on the human come first (`◆` awaiting approval or escalated, `✗` a failed deploy), then the
+  ones the flow is working on (`⇢`), each group in the order announced. `✓` done stays for 30 seconds.
+- Failed and escalated entries stay until the issue's next marker, or `/clear`; the panel only shows them and acts on
+  nothing.
+- It shows at most six, as many as its rows allow, and counts the rest (`+2 more`). It says `No issues in flight`
+  when none is, and empties on `/clear` and `/resume`. Empty, it yields its rows to a subagent band with subagents in
+  it; with issues in it, it comes first and the band takes the rows left.
+
+`/issues` hides the panel, and shows it again; the choice is kept across sessions.
 
 **Subagent band:** while subagents run, a framed band titled "Subagents" under the session panel shows what each
 one is doing:
@@ -127,8 +156,40 @@ implement-prd, prd-to-jira) need an Atlassian MCP connector exposing `getAccessi
 `getConfluencePage`, `createJiraIssue`, etc. `implement-prd` uses read-only
 subagents where the runtime supports them, and can run them sequentially otherwise.
 
-Evals: `evals/<skill>-<n>/` in the `claude plugin eval` format (see `AGENTS.md` at the repo root); present for
-`bilingual-apps`, `ci`, `design-doc`, `issue-tracker`, `review-code`, `review-design-doc` and `web-stack`.
+Evals: `evals/<skill>-<n>/` in the `claude plugin eval` format (see `AGENTS.md` at the repo root); every skill has
+them.
 
-Not included (Claude-specific, not skills): rules, routines, settings, agent definitions. The one exception is the
-Claude Code hooks module above, which other runtimes ignore.
+Not included (Claude-specific, not skills): rules, routines, settings. The exceptions are the Claude Code hooks module
+above and the three agents in `agents/` (`feasibility-judge`, `implementer`, `evidence-reviewer`, used by the issue
+flow), which other runtimes ignore.
+
+## Issue-to-deploy flow: GitHub App setup
+
+The `issue-flow` skill acts on GitHub as a GitHub App installation, not as you. Set the App up once:
+
+1. Create a GitHub App (Settings > Developer settings > GitHub Apps). Give it these repository permissions:
+   Contents, Pull requests and Issues: read and write; Actions and Checks: read. A change that touches
+   `.github/workflows/` also needs Workflows: read and write, or its push is rejected.
+2. Generate a private key for it and store the `.pem` outside any repository.
+3. Install the App on the chosen repositories only. On each, protect the default branch with a rule that requires an
+   approving review, so GitHub itself refuses a merge without one, whatever the flow does.
+4. In each target repo, write `.github/issue-flow.json` (priority labels, label names, the App's ID, installation ID
+   and key path, how to run the app, how to capture evidence, the deploy workflow). The schema is in
+   [`issue-flow/config.md`](issue-flow/config.md); the skill validates it before it does anything else.
+5. From inside the target repo, ask Claude to run the issue flow, which invokes the `issue-flow` skill.
+
+How it behaves:
+
+- The human decides at two points only: escalated issues, and PR approval. An approving review from an `OWNER`,
+  `MEMBER` or `COLLABORATOR` who is neither a bot nor the PR's author is the approval; the flow then merges and
+  watches the deploy.
+- At most 3 PRs await review and at most 3 issues are being implemented at once.
+- Evidence images and logs are pushed to the `issue-flow-evidence` branch, never to the PR branch. The PR links them as
+  `https://github.com/<owner>/<repo>/raw/issue-flow-evidence/...`, which should render for viewers with access to the
+  repo; this has not been checked on a private repo.
+- `token-cli.js` is plain ESM with no `package.json` beside it, so Node must detect ESM syntax (20.19+ or 22.7+).
+
+Accepted limits:
+
+- Commits keep your local git identity; the App's bot is not named as author.
+- The flow finds its own PRs by branch name (`issue/<n>-*`) and an author of type `Bot`, not by the App's login.

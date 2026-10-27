@@ -2,7 +2,7 @@ import type { Color, Elements, ModelUsage, RenderSurface } from 'claude-code'
 
 import type { FlowStatus, Place, RunStatus, SubagentCall, SubagentRun } from '../types'
 import { gauge, percentOf } from './gauge'
-import { MARKS, clip, modelColor, modelName } from './shared'
+import { MARKS, clip, duration, modelColor, modelName } from './shared'
 
 // The band above the prompt: what each subagent is doing, while it runs and
 // for a short while after. What is here is pure: how the runs change, and how
@@ -79,12 +79,6 @@ const samePlace = (one: Place, other: Place) => one.worktree === other.worktree 
 
 const placeText = ({ worktree, branch }: Place) => `${worktree} ⎇ ${branch}`
 
-const duration = (ms: number) => {
-  const seconds = Math.max(0, Math.floor(ms / 1000))
-
-  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
-}
-
 const callCount = (calls: number) => `${calls} ${calls === 1 ? 'call' : 'calls'}`
 
 // Rows an entry takes: its own, its task's, and its latest call's while it runs.
@@ -99,6 +93,36 @@ const EMPTY = 'No subagents'
 // either side of it.
 const TITLE_CHROME = 2 + 4
 
+// What the band shows in `maxRows` rows inside its frame: running subagents
+// first, each group in the order they started; then as many entries as the
+// rows allow, a row kept for the rest's count.
+const layout = (runs: readonly SubagentRun[], at: number, maxRows: number) => {
+  const visible = runs.filter(run => isShown(run, at))
+  const ordered = [
+    ...visible.filter(run => run.status === 'running'),
+    ...visible.filter(run => run.status !== 'running'),
+  ]
+  const shown: SubagentRun[] = []
+  let rows = 0
+  for (const [index, run] of ordered.entries()) {
+    const reserve = index < ordered.length - 1 ? 1 : 0
+    if (shown.length === MAX_ENTRIES || rows + rowsOf(run) + reserve > maxRows) break
+    shown.push(run)
+    rows += rowsOf(run)
+  }
+
+  return { isEmpty: visible.length === 0, shown, rows, more: ordered.length - shown.length }
+}
+
+// The rows the band takes, frame included: 0 when it has no row inside it.
+export const bandRows = (runs: readonly SubagentRun[], at: number, maxRows: number) => {
+  const inside = maxRows - FRAME_ROWS
+  if (inside < 1) return 0
+  const { isEmpty, rows, more } = layout(runs, at, inside)
+
+  return FRAME_ROWS + (isEmpty ? 1 : rows + (more > 0 ? 1 : 0))
+}
+
 // The band's tree, saying there are no subagents when none is shown, or
 // undefined when the frame has no row inside it. `place` is the session's: the
 // title shows it, and an entry shows its own only where it differs, as in a
@@ -112,23 +136,7 @@ export const bandView = (
 ) => {
   const maxRows = room.maxRows - FRAME_ROWS
   if (maxRows < 1) return undefined
-  const visible = runs.filter(run => isShown(run, at))
-
-  // Running subagents first, each group in the order they started; then as
-  // many entries as the frame's rows allow, a row kept for the rest's count.
-  const ordered = [
-    ...visible.filter(run => run.status === 'running'),
-    ...visible.filter(run => run.status !== 'running'),
-  ]
-  const shown: SubagentRun[] = []
-  let rows = 0
-  for (const [index, run] of ordered.entries()) {
-    const reserve = index < ordered.length - 1 ? 1 : 0
-    if (shown.length === MAX_ENTRIES || rows + rowsOf(run) + reserve > maxRows) break
-    shown.push(run)
-    rows += rowsOf(run)
-  }
-  const more = ordered.length - shown.length
+  const { isEmpty, shown, more } = layout(runs, at, maxRows)
 
   const entry = (run: SubagentRun) => {
     const mark = RUN_MARKS[run.status]
@@ -175,7 +183,7 @@ export const bandView = (
           {where}{' '}
         </Text>
       </Box>
-      {visible.length === 0 ? (
+      {isEmpty ? (
         <Text dimColor wrap="truncate-end">
           {EMPTY}
         </Text>
