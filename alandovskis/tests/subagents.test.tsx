@@ -705,6 +705,42 @@ test('/session-pane closes the pane, then opens it again', async ($, on) => {
   expect(panes.opened).toEqual(['session', 'session'])
 })
 
+test('a pane closed with /session-pane stays shut when the desktop attaches, until it is opened again', async ($, on) => {
+  const panes = sessionPane(on)
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const run = () =>
+    $.command.run({ command: 'session-pane', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+  const attach = () => $.session.attach({ surface: 'desktop', clientId: 'desktop:default' })
+
+  await run()
+  await attach()
+  expect(panes.opened).toEqual(['session'])
+
+  // Opened again, it opens on an attach as at the start.
+  await run()
+  expect(panes.opened).toEqual(['session', 'session'])
+})
+
+test('the band gives up as many rows as the panel takes, the usage box included', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  const session: Session = { model: 'claude-opus-5-5', window: 1_000_000 }
+  engine(on, {}, { cwd: '/' }, session)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  for (let n = 1; n <= 4; n++) await spawn($, 'Explore', `task ${n}`)
+  await clock.advance(1_000)
+
+  // The panel is the session box alone: three rows.
+  const alone = await bandLines($, 'terminal', 11)
+
+  // With the context and the limits it is the usage box too: four rows more.
+  session.percent = 18
+  session.rateLimits = [{ kind: 'five_hour', percentUsed: 55 }]
+  await clock.advance(1_000)
+  expect(await bandLines($, 'terminal', 15)).toHaveLength(alone.length)
+  expect((await bandLines($, 'terminal', 11)).length).toBeLessThan(alone.length)
+})
+
 test('the session panel shows the effort of the main loop as a bar beside the model', async ($, on) => {
   const clock = mock.clock(on, { now: 0 })
   engine(on, {}, { cwd: '/' }, { model: 'claude-opus-5-5', window: 1_000_000 })

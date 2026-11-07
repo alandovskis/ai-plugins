@@ -78,8 +78,9 @@ holds the context on one row and the rate limits together on another:
 - A figure the session has none for is left out: the context before the first response, the rate limits off a
   subscription. The figures are read every second, so a `/model` switch shows within a second.
 - The panel and the subagent band draw in the "Session" pane, which opens when the session starts, on the terminal
-  and in Claude Desktop alike, and nothing is drawn above the prompt. `/session-pane` closes the pane, and opens it
-  again. A pane you close yourself stays shut for the session, and `/session-pane` opens it. `/subagents` hides only
+  and in Claude Desktop alike, and nothing is drawn above the prompt. A pane you close, with its close mark or with
+  `/session-pane`, stays shut for the session, through a reload and a Desktop attach, and `/session-pane` opens it
+  again. `/subagents` hides only
   the subagent band. On Desktop the boxes are plain rows, each titled on its first, as a bordered box draws as a card
   there.
 

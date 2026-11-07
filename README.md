@@ -2,8 +2,8 @@
 
 A personal [Claude Code](https://claude.com/claude-code) plugin marketplace. It currently contains one plugin,
 [`alandovskis`](alandovskis/README.md): agent skills for requirements docs (BRD/PRD), planning and implementation,
-code review, plus Claude Code mods: a `/flow` sidebar showing the conversation flow, and a band above the prompt
-  showing what subagents are doing.
+code review, plus Claude Code mods: a `/flow` sidebar showing the conversation flow, and a "Session" pane showing the
+  session's figures and what subagents are doing.
 
 These skills are opinionated and built around my own workflow. They assume, for example, Jira and Confluence for
 requirements and issues (through an Atlassian MCP connector), GitHub Actions for CI, Rust/WebAssembly for web apps

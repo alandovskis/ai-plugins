@@ -53,8 +53,6 @@ const limitOf = (limits: readonly SessionRateLimit[], kind: string, at: number):
   return left > 0 ? { percent, resetsIn: until(left) } : { percent }
 }
 
-// The figures from the session's model and `$.session.usage()`'s answer, at
-// `at` on the engine's clock.
 // How many readings the sparkline keeps.
 const HISTORY_MAX = 10
 
@@ -78,6 +76,9 @@ export const sparkline = (readings: readonly number[]) =>
     .map(value => SPARK_CELLS[Math.min(SPARK_CELLS.length - 1, Math.floor((value / 100) * SPARK_CELLS.length))])
     .join('')
 
+// The figures from the session's model and `$.session.usage()`'s answer, at
+// `at` on the engine's clock. `before` is the gauge it replaces: the context
+// readings carry on from its, so without it the sparkline starts again.
 export const gaugeOf = (
   model: string,
   usage: SessionUsage,

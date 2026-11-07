@@ -145,8 +145,13 @@ const tick = async ($: EngineInterface) => {
 
 // Opens the session pane, unless the person closed it: it stays shut.
 const openSessionPane = async ($: EngineInterface) => {
-  if (await read($, isPaneClosed)) return
-  await $.ui.open({ id: SESSION_PANE, title: SESSION_PANE_TITLE })
+  if (await read($, isPaneClosed)) {
+    $.ui.log('alandovskis: the session pane stays shut, as the person closed it', { to: 'debug' })
+
+    return
+  }
+  const opened = await $.ui.open({ id: SESSION_PANE, title: SESSION_PANE_TITLE })
+  if (!opened.isPlaced) $.ui.log(`alandovskis: the session pane waits undrawn: ${opened.reason}`, { to: 'debug' })
 }
 
 // The session panel over the subagent band in the rows given, or undefined
@@ -202,7 +207,8 @@ export const register: Register = on => {
     return attached
   })
 
-  // Closed by the person, the pane stays shut for the session; /session-pane opens it again.
+  // Closed by the person with its mark or key, the pane stays shut for the session; /session-pane
+  // closes it the same way, and opens it again.
   on('ui.close', async ($, e, next) => {
     const closed = await next(e)
     if (e.id === SESSION_PANE) {
@@ -228,6 +234,8 @@ export const register: Register = on => {
   on('command.run', { command: SESSION_COMMAND }, async $ => {
     if ((await $.ui.panes()).some(pane => pane.id === SESSION_PANE)) {
       await $.ui.close({ id: SESSION_PANE })
+      // The close hook ran first and took this one, a plugin's own, for no latch.
+      await update($, isPaneClosed, () => true)
 
       return { text: 'Session pane closed.' }
     }
@@ -379,7 +387,17 @@ export const register: Register = on => {
     const stepped = yield* next(e)
     const { agentId } = e
     // The main loop's request says how hard the session asks the model to think.
-    if (agentId === undefined) await landed($, "recording the session's effort", update($, effort, () => effortOf(e.effort)))
+    if (agentId === undefined) {
+      const level = effortOf(e.effort)
+      // Written when it moved only, so a steady level redraws nothing; one this build
+      // has no cells for is logged once, as it looks like a model without effort.
+      if ((await read($, effort)) !== level) {
+        if (level === null && e.effort !== undefined) {
+          $.ui.log(`alandovskis: the effort bar has no cells for ${JSON.stringify(e.effort)}`, { to: 'debug' })
+        }
+        await landed($, "recording the session's effort", update($, effort, () => level))
+      }
+    }
     const { usage } = stepped
     if (agentId !== undefined && usage !== null) {
       await landed($, `measuring subagent ${agentId}'s context`, update($, runs, list => measured(list, agentId, usage)))
