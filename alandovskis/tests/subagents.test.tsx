@@ -58,6 +58,9 @@ const rowsIn = (elements: readonly Drawn[]) =>
 const bandLines = async ($: Engine, surface: (typeof SURFACES)[number], maxRows?: number) =>
   rowsIn(await boxElements($, surface, 'subagents', maxRows))
 
+const usageLines = async ($: Engine, surface: (typeof SURFACES)[number]) =>
+  rowsIn(await boxElements($, surface, 'session-usage'))
+
 const panelLines = async ($: Engine, surface: (typeof SURFACES)[number]) => rowsIn(await boxElements($, surface, 'session'))
 
 // The gauges' parts: the Texts that draw only cells, or only a percentage,
@@ -90,10 +93,10 @@ const spawn = ($: Engine, subagentType: string, description: string) =>
 const stepTokens = new Map<string, number>()
 
 // The engine raising turn.step for one model response, read to its end.
-const step = async ($: Engine, agentId: string | undefined, tokens: number) => {
+const step = async ($: Engine, agentId: string | undefined, tokens: number, effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max') => {
   const turnId = `step-${crypto.randomUUID()}`
   stepTokens.set(turnId, tokens)
-  const stream = $.turn.step({ turnId, index: 0, model: 'm', messageCount: 1, ...(agentId === undefined ? {} : { agentId }) })
+  const stream = $.turn.step({ turnId, index: 0, model: 'm', messageCount: 1, ...(effort === undefined ? {} : { effort }), ...(agentId === undefined ? {} : { agentId }) })
   for await (const _chunk of stream) {
     // Drained: the result settles once the stream is read to its end.
   }
@@ -533,10 +536,15 @@ test('the session panel shows the model, how full the context is and the rate li
     if (surface === 'terminal') expect(frame).toMatchObject({ borderStyle: 'round', width: 100 })
     else expect(frame).not.toHaveProperty('borderStyle')
     expect((await ui.find({ key: 'session-title' }))?.text.trim()).toBe('Session')
-    expect(await panelLines($, surface)).toEqual([
-      ' Opus 5.5   Context ██░░░░░░░░ 18%  5h ██████░░░░ 55% ↻ 2h 10m  Week ████████░░ 81% ↻ 3d 4h',
+    // The context and the limits have a box of their own under the model's,
+    // the limits on a row apart from the context.
+    expect(await panelLines($, surface)).toEqual([' Opus 5.5 '])
+    expect(await usageLines($, surface)).toEqual([
+      'Context ██░░░░░░░░ 18%',
+      '5h ██████░░░░ 55% ↻ 2h 10m  Week ████████░░ 81% ↻ 3d 4h',
     ])
-    expect(gaugeParts(await boxElements($, surface, 'session'))).toEqual([
+    expect((await (await mountBand($, surface)).find({ key: 'session-usage-title' }))?.text.trim()).toBe('Context and limits')
+    expect(gaugeParts(await boxElements($, surface, 'session-usage'))).toEqual([
       ['██', 'success'],
       ['░░░░░░░░', undefined],
       ['18%', 'success'],
@@ -569,7 +577,8 @@ test('the session panel leaves out what it has no figure for, and follows a chan
   session.rateLimits = [{ kind: 'seven_day', percentUsed: 100 }]
   await clock.advance(1_000)
   for (const surface of SURFACES) {
-    expect(await panelLines($, surface)).toEqual([' Sonnet 5.5   Context ░░░░░░░░░░ 3%  Week ██████████ 100%'])
+    expect(await panelLines($, surface)).toEqual([' Sonnet 5.5 '])
+    expect(await usageLines($, surface)).toEqual(['Context ░░░░░░░░░░ 3%', 'Week ██████████ 100%'])
   }
 })
 
@@ -608,7 +617,7 @@ test('each rate limit counts down to its reset, by the minute', async ($, on) =>
 
   // Rounded up, so a reset 41 minutes and a second away reads 42m; a window
   // the engine gives no time for shows none.
-  const fiveHour = async () => (await panelLines($, 'terminal'))[0]?.match(/5h \S+ \d+%(.*?)  Week/)?.[1]
+  const fiveHour = async () => (await usageLines($, 'terminal'))[0]?.match(/5h \S+ \d+%(.*?)(  Week|$)/)?.[1] ?? ''
   expect(await fiveHour()).toBe(' ↻ 42m')
   await clock.advance(MINUTE)
   expect(await fiveHour()).toBe(' ↻ 41m')
@@ -694,4 +703,66 @@ test('/session-pane closes the pane, then opens it again', async ($, on) => {
   expect(await run()).toMatchObject({ text: 'Session pane closed.' })
   expect(await run()).toMatchObject({ text: 'Session pane opened.' })
   expect(panes.opened).toEqual(['session', 'session'])
+})
+
+test('the session panel shows the effort of the main loop as a bar beside the model', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  engine(on, {}, { cwd: '/' }, { model: 'claude-opus-5-5', window: 1_000_000 })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(1_000)
+
+  // None before the first request.
+  for (const surface of SURFACES) expect(await panelLines($, surface)).toEqual([' Opus 5.5 '])
+
+  await step($, undefined, 100, 'high')
+  for (const surface of SURFACES) expect(await panelLines($, surface)).toEqual([' Opus 5.5   Effort ███░░ high'])
+  expect(gaugeParts(await boxElements($, 'terminal', 'session'))).toEqual([
+    ['███', 'warning'],
+    ['░░', undefined],
+  ])
+
+  // A subagent's request leaves it alone; the next main one moves it.
+  await step($, 'a1', 100, 'low')
+  expect(await panelLines($, 'terminal')).toEqual([' Opus 5.5   Effort ███░░ high'])
+  await step($, undefined, 100, 'max')
+  expect(await panelLines($, 'terminal')).toEqual([' Opus 5.5   Effort █████ max'])
+  // A model without effort takes the bar away.
+  await step($, undefined, 100)
+  expect(await panelLines($, 'terminal')).toEqual([' Opus 5.5 '])
+})
+
+test('the context bar has a sparkline of its latest readings beside it', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  const session: Session = { model: 'claude-opus-5-5', window: 1_000_000, percent: 18 }
+  engine(on, {}, { cwd: '/' }, session)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(1_000)
+  const context = async (surface: (typeof SURFACES)[number]) => (await usageLines($, surface))[0]
+  const read = async (percent: number | undefined) => {
+    session.percent = percent
+    await clock.advance(1_000)
+  }
+
+  // One reading draws no trend.
+  for (const surface of SURFACES) expect(await context(surface)).toBe('Context ██░░░░░░░░ 18%')
+
+  // A cell a distinct reading, as high as the window it fills; a repeat adds none.
+  await read(40)
+  await read(40)
+  await read(70)
+  for (const surface of SURFACES) expect(await context(surface)).toBe('Context ███████░░░ 70% ▂▄▆')
+
+  // A compaction shows as a drop.
+  await read(5)
+  expect(await context('terminal')).toBe('Context █░░░░░░░░░ 5% ▂▄▆▁')
+
+  // The latest ten are kept.
+  for (let n = 1; n <= 12; n++) await read(n * 8)
+  expect(Array.from((await context('terminal'))?.split(' ').at(-1) ?? '')).toHaveLength(10)
+
+  // With no figure (after /clear) the readings go too.
+  await read(undefined)
+  expect(await usageLines($, 'terminal')).toEqual([])
+  await read(30)
+  expect(await context('terminal')).toBe('Context ███░░░░░░░ 30%')
 })

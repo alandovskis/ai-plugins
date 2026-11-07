@@ -3,7 +3,7 @@ import type { Elements, EngineInterface, Register, RenderSurface } from 'claude-
 
 import type { FlowNode, FlowStatus, Place, RunStatus, SubagentCall } from '../types'
 import { appended, changed, flowView, seconds, withSpawn } from './flow'
-import { PANEL_ROWS, gaugeOf, sameGauge, sessionView } from './session'
+import { effortOf, gaugeOf, panelRows, sameGauge, sessionView } from './session'
 import { AGENT_TOOLS, clip, detailOf, firstLine, statusOf } from './shared'
 import {
   LABEL_MAX,
@@ -46,6 +46,7 @@ const now = atom({ plugin: 'alandovskis', key: 'subagentsNow' } as const, 0)
 const isBandHidden = atom({ plugin: 'alandovskis', key: 'subagentsHidden' } as const, false)
 const place = atom({ plugin: 'alandovskis', key: 'subagentsPlace' } as const, null)
 const figures = atom({ plugin: 'alandovskis', key: 'sessionGauge' } as const, null)
+const effort = atom({ plugin: 'alandovskis', key: 'sessionEffort' } as const, null)
 const isPaneClosed = atom({ plugin: 'alandovskis', key: 'sessionPaneClosed' } as const, false)
 
 // Where the person's choice to hide the band is kept across sessions.
@@ -127,8 +128,9 @@ const readSessionWindow = async ($: EngineInterface) => {
 // Read each tick, as the model can change between turns and no event says so.
 const readFigures = async ($: EngineInterface) => {
   const [model, usage, at] = await Promise.all([$.session.model(), $.session.usage(), $.clock.now()])
-  const found = gaugeOf(model, usage, at)
-  if (!sameGauge(await read($, figures), found)) await update($, figures, () => found)
+  const before = await read($, figures)
+  const found = gaugeOf(model, usage, at, before)
+  if (!sameGauge(before, found)) await update($, figures, () => found)
 }
 
 // Moves the clock the band draws its times from, and drops finished runs
@@ -156,8 +158,9 @@ const sessionAndBand = async (
   key: string,
   room: { maxRows: number; bodyColumns: number },
 ) => {
-  const panel = sessionView(ui, surface, await read($, figures), room.bodyColumns)
-  const left = { ...room, maxRows: room.maxRows - (panel === undefined ? 0 : PANEL_ROWS) }
+  const gauge = await read($, figures)
+  const panel = sessionView(ui, surface, gauge, await read($, effort), room.bodyColumns)
+  const left = { ...room, maxRows: room.maxRows - (gauge === null ? 0 : panelRows(gauge)) }
   const band = (await read($, isBandHidden))
     ? undefined
     : bandView(ui, surface, await read($, runs), await read($, now), await read($, place), left)
@@ -375,6 +378,8 @@ export const register: Register = on => {
   on('turn.step', async function* ($, e, next) {
     const stepped = yield* next(e)
     const { agentId } = e
+    // The main loop's request says how hard the session asks the model to think.
+    if (agentId === undefined) await landed($, "recording the session's effort", update($, effort, () => effortOf(e.effort)))
     const { usage } = stepped
     if (agentId !== undefined && usage !== null) {
       await landed($, `measuring subagent ${agentId}'s context`, update($, runs, list => measured(list, agentId, usage)))

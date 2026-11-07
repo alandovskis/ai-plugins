@@ -50,17 +50,27 @@ starts when the plugin loads, empties on `/clear` and `/resume`, and keeps the l
 name is cut to 48 characters and the detail to 120. It only observes: it never changes or blocks a prompt or a tool
 call.
 
-**Session panel:** a framed panel titled "Session" sits at the top of the "Session" pane, over the subagent
-band, and shows the session's figures as the status line has them:
+**Session panel:** two framed boxes at the top of the "Session" pane, over the subagent band, show the
+session's figures as the status line has them. "Session" holds the model and its effort; "Context and limits" under it
+holds the context on one row and the rate limits together on another:
 
 ```
-╭─ Session ─────────────────────────────────────────────────────────────────────────────────╮
-│ Opus 5.5  Context ██░░░░░░░░ 18%  5h ██████░░░░ 55% ↻ 2h 10m  Week ████████░░ 81% ↻ 3d 4h │
-╰───────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Session ──────────────────────────────────────────────────────╮
+│ Opus 5.5  Effort ███░░ high                                    │
+╰────────────────────────────────────────────────────────────────╯
+╭─ Context and limits ───────────────────────────────────────────╮
+│ Context ██░░░░░░░░ 18% ▁▂▃▃▂▃                                  │
+│ 5h ██████░░░░ 55% ↻ 2h 10m  Week ████████░░ 81% ↻ 3d 4h        │
+╰────────────────────────────────────────────────────────────────╯
 ```
 
 - The model the session runs on, as a badge coloured as in the subagent band.
-- `Context`: how full the session's context window is, from its latest response; `5h` and `Week`: how much of the
+- `Effort`: how hard the main loop's latest request asked the model to think, a bar of five cells (`low` one, `max`
+  five) and the level, coloured as the other bars. It is left out before the first request and on a model without
+  effort, and a subagent's request does not move it.
+- `Context`: how full the session's context window is, from its latest response. Dimmed after it, a sparkline of its
+  latest ten distinct readings: a cell each, as high as the share of the window it fills, so a compaction shows as a
+  drop. It shows from the second reading, and starts again when the figure goes. `5h` and `Week`: how much of the
   five-hour and the weekly rate limit is used. Each is a bar of ten cells and its percentage: green under 50%, yellow
   from 50%, red from 80%.
 - `↻` after a limit: how long until it resets, rounded up to the minute (`42m`, `2h 10m`, or `3d 4h` from a day). It is

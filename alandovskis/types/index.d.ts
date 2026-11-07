@@ -67,10 +67,15 @@ export interface SessionGauge {
   model: string
   /** How full the context window is, a whole percentage; absent before the first response. */
   contextPercent?: number
+  /** The latest distinct values of `contextPercent`, oldest first: the sparkline's samples. Empty without a figure. */
+  contextHistory?: number[]
   /** The five-hour and the weekly rate limit; absent off a subscription. */
   fiveHour?: SessionLimit
   week?: SessionLimit
 }
+
+/** How hard the session's model is asked to think, from the least to the most. */
+export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 declare module 'claude-code' {
   interface PluginState {
@@ -86,6 +91,8 @@ declare module 'claude-code' {
       sessionGauge: SessionGauge | null
       /** The person closed the session pane, which then stays shut until /session-pane. */
       sessionPaneClosed: boolean
+      /** The effort the main loop's latest request asked for; null before the first, or on a model without effort. */
+      sessionEffort: EffortLevel | null
     }
   }
 }
