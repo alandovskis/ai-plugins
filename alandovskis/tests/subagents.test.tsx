@@ -555,7 +555,8 @@ test('the session panel shows the model, how full the context is and the rate li
       ['░░', undefined],
       ['81%', 'error'],
     ])
-    expect(await bandLines($, surface)).toEqual(['No subagents'])
+    // The pane has rows for the two boxes, the issue panel and the band.
+    expect(await bandLines($, surface, 20)).toEqual(['No subagents'])
   }
 })
 

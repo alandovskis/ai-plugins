@@ -63,6 +63,13 @@ export const clip = (text: string, max: number) => {
   return text
 }
 
+// An elapsed time as the bands show it: `42s`, then `3m 07s`.
+export const duration = (ms: number) => {
+  const seconds = Math.max(0, Math.floor(ms / 1000))
+
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
+}
+
 export const firstLine = (text: string) => text.trim().split('\n', 1)[0] ?? ''
 
 export const detailOf = (args: Readonly<Record<string, unknown>>) => {

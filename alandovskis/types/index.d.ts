@@ -77,12 +77,36 @@ export interface SessionGauge {
 /** How hard the session's model is asked to think, from the least to the most. */
 export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
+/** A phase of the issue flow, as its step marker names it. */
+export type Step =
+  | 'picking'
+  | 'judging'
+  | 'implementing'
+  | 'evidence'
+  | 'pr-open'
+  | 'awaiting-approval'
+  | 'merging'
+  | 'deploying'
+  | 'done'
+  | 'escalated'
+  | 'failed'
+
+/** One issue in the issue flow, as its latest step marker left it. */
+export interface IssueRun {
+  issue: number
+  step: Step
+  /** What the step waits on, as the marker says it; absent when it says nothing. */
+  waitingOn?: string
+  /** When the marker was seen, in milliseconds since the epoch, on the engine's clock. */
+  since: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
     alandovskis: {
       flowNodes: FlowNode[]
       subagentRuns: SubagentRun[]
-      /** The engine's clock as of the band's last tick, for elapsed times. */
+      /** The engine's clock as of the last tick, for the band's and the issue panel's elapsed times. */
       subagentsNow: number
       subagentsHidden: boolean
       /** Where the session works, for the band's title; null outside git. */
@@ -93,6 +117,9 @@ declare module 'claude-code' {
       sessionPaneClosed: boolean
       /** The effort the main loop's latest request asked for; null before the first, or on a model without effort. */
       sessionEffort: EffortLevel | null
+      /** The issues in flight, in the order the flow first announced them. */
+      issueRuns: IssueRun[]
+      issuesHidden: boolean
     }
   }
 }
