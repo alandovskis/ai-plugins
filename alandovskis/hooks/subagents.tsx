@@ -5,7 +5,7 @@ import { FRAME_ROWS, frame } from './frame'
 import { gauge, percentOf } from './gauge'
 import { MARKS, clip, modelColor, modelName } from './shared'
 
-// The band above the prompt: what each subagent is doing, while it runs and
+// The band in the session pane: what each subagent is doing, while it runs and
 // for a short while after. What is here is pure: how the runs change, and how
 // they are drawn. register.tsx wires it to the events.
 

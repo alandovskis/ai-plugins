@@ -5,7 +5,7 @@ import { FRAME_ROWS, frame } from './frame'
 import { gauge } from './gauge'
 import { modelColor, modelName } from './shared'
 
-// The panel at the top of the band above the prompt: the session's model, how
+// The panel at the top of the session pane: the session's model, how
 // full its context window is, and how much of its rate limits is used and
 // when each resets. What is
 // here is pure; register.tsx reads the figures and draws it.

@@ -50,7 +50,7 @@ starts when the plugin loads, empties on `/clear` and `/resume`, and keeps the l
 name is cut to 48 characters and the detail to 120. It only observes: it never changes or blocks a prompt or a tool
 call.
 
-**Session panel:** a framed panel titled "Session" sits at the top of the band above the prompt, over the subagent
+**Session panel:** a framed panel titled "Session" sits at the top of the "Session" pane, over the subagent
 band, and shows the session's figures as the status line has them:
 
 ```
@@ -67,10 +67,11 @@ band, and shows the session's figures as the status line has them:
   left out when the engine gives no reset time, and once the time has passed.
 - A figure the session has none for is left out: the context before the first response, the rate limits off a
   subscription. The figures are read every second, so a `/model` switch shows within a second.
-- It yields the band to a survey, as the subagent band does. `/subagents` hides only the subagent band.
-- In Claude Desktop the panel and the subagent band move to a "Session" pane in the side panel, as plain rows each
-  titled on its first, and leave the area above the prompt. They stay above the prompt until Desktop draws the pane,
-  in a session that also has a terminal, and once you close the pane, for the rest of the session.
+- The panel and the subagent band draw in the "Session" pane, which opens when the session starts, on the terminal
+  and in Claude Desktop alike, and nothing is drawn above the prompt. `/session-pane` closes the pane, and opens it
+  again. A pane you close yourself stays shut for the session, and `/session-pane` opens it. `/subagents` hides only
+  the subagent band. On Desktop the boxes are plain rows, each titled on its first, as a bordered box draws as a card
+  there.
 
 **Subagent band:** while subagents run, a framed band titled "Subagents" under the session panel shows what each
 one is doing:

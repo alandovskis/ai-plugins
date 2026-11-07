@@ -4,12 +4,27 @@ import type { On } from 'claude-code'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
+// The session pane, as the surface mounts it: `maxRows` rows of body.
 const band = (maxRows = 12) =>
   ({
-    component: 'AbovePrompt',
-    viewport: { columns: 120, rows: 40, isFullscreen: true },
-    props: { hasSurvey: false, isWorking: true, maxRows, bodyColumns: 100, scroll: { offset: 0, bodyRows: maxRows }, view: {} },
+    component: 'Pane',
+    requestId: 'session',
+    viewport: { columns: 60, rows: 40 },
+    props: { title: 'Session', isFocused: false, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: maxRows }, view: {} },
   }) as const
+
+// A pane mounts once on a surface, so the one mounted before is unmounted.
+const mounted = new WeakMap<Engine, Map<string, { unmount: () => Promise<void> }>>()
+
+const mountBand = async ($: Engine, surface: (typeof SURFACES)[number], spec: ReturnType<typeof band> = band()) => {
+  const surfaces = mounted.get($) ?? new Map()
+  mounted.set($, surfaces)
+  await surfaces.get(surface)?.unmount()
+  const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...spec })
+  surfaces.set(surface, ui)
+
+  return ui
+}
 
 // An element as the kit draws a child: its tag, its props, and its children.
 interface Drawn {
@@ -28,7 +43,7 @@ const elementsOf = (node: unknown): Drawn[] =>
 // What the box keyed `key` draws: the subagent band (`subagents`) or the
 // session panel over it (`session`); nothing while the box is not drawn.
 const boxElements = async ($: Engine, surface: (typeof SURFACES)[number], key: string, maxRows?: number) => {
-  const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band(maxRows) })
+  const ui = await mountBand($, surface, band(maxRows))
 
   return ((await ui.find({ key }))?.children ?? []).flatMap(elementsOf)
 }
@@ -158,11 +173,6 @@ const engine = (on: On, repos: Repos = {}, where = { cwd: '/' }, session: Sessio
   })
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
-  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
-    const { Box } = $.ui.resolve(e)
-
-    return <Box />
-  })
   let next = 0
   on('agent.spawn', (_$, e) => ({ model: MODELS[e.subagentType] ?? 'claude-opus-5-5', agentId: `a${++next}` }))
   on('tool.call', () => ({ result: 'ok' as never, text: 'ok' }))
@@ -172,7 +182,7 @@ const engine = (on: On, repos: Repos = {}, where = { cwd: '/' }, session: Sessio
 test('the band says there are no subagents while none has run', async ($, on) => {
   engine(on)
   for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band() })
+    const ui = await mountBand($, surface)
     expect((await ui.find({ key: 'subagents-title' }))?.text.trim()).toBe('Subagents')
     expect(await bandLines($, surface)).toEqual(['No subagents'])
   }
@@ -207,7 +217,7 @@ test('on the terminal the band is framed by a border with its title on it', asyn
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   await spawn($, 'Explore', 'Find callers')
 
-  const ui = await $.ui.mount({ plugin: 'alandovskis', surface: 'terminal', ...band() })
+  const ui = await mountBand($, 'terminal')
   expect((await ui.find({ key: 'subagents' }))?.props).toMatchObject({ borderStyle: 'round', width: 100 })
   const title = await ui.find({ key: 'subagents-title' })
   expect(title?.props).toMatchObject({ position: 'absolute', top: -1 })
@@ -222,7 +232,7 @@ test('on the desktop the band has no border, its title its first row', async ($,
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   await spawn($, 'Explore', 'Find callers')
 
-  const ui = await $.ui.mount({ plugin: 'alandovskis', surface: 'desktop', ...band() })
+  const ui = await mountBand($, 'desktop')
   const box = await ui.find({ key: 'subagents' })
   expect(box?.props).not.toHaveProperty('borderStyle')
   expect(box?.props).not.toHaveProperty('width')
@@ -350,7 +360,7 @@ test('/clear empties the band', async ($, on) => {
 })
 
 const title = async ($: Engine, surface: (typeof SURFACES)[number], bodyColumns = 100) => {
-  const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band(), props: { ...band().props, bodyColumns } })
+  const ui = await mountBand($, surface, { ...band(), props: { ...band().props, bodyColumns } })
 
   return (await ui.find({ key: 'subagents-title' }))?.text
 }
@@ -518,7 +528,7 @@ test('the session panel shows the model, how full the context is and the rate li
 
   // It shows with no subagent running, framed and titled as the band is.
   for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band() })
+    const ui = await mountBand($, surface)
     const frame = (await ui.find({ key: 'session' }))?.props
     if (surface === 'terminal') expect(frame).toMatchObject({ borderStyle: 'round', width: 100 })
     else expect(frame).not.toHaveProperty('borderStyle')
@@ -582,20 +592,6 @@ test('/subagents hides the band but not the session panel', async ($, on) => {
   }
 })
 
-test('a survey has the whole band to itself', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  engine(on)
-  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
-  await spawn($, 'Explore', 'Find callers')
-  await clock.advance(1_000)
-
-  for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band(), props: { ...band().props, hasSurvey: true } })
-    expect(await ui.find({ key: 'session' })).toBeUndefined()
-    expect(await ui.find({ key: 'subagents' })).toBeUndefined()
-  }
-})
-
 test('each rate limit counts down to its reset, by the minute', async ($, on) => {
   const clock = mock.clock(on, { now: 0 })
   const session: Session = {
@@ -623,12 +619,10 @@ test('each rate limit counts down to its reset, by the minute', async ($, on) =>
   expect(await fiveHour()).toBe('')
 })
 
-// The desktop's pane for the session panel and the band: the surfaces the
-// session draws on, and the panes the engine holds, as the tests set them.
-const sessionPane = (on: On, surfaces: readonly ('terminal' | 'desktop')[], isPlaced = true) => {
+// The panes the engine holds, as the tests set them.
+const sessionPane = (on: On, isPlaced = true) => {
   const panes = new Map<string, boolean>()
   const opened: string[] = []
-  on('session.surfaces', () => ({ value: surfaces }))
   on('session.attach', (_$, e) => ({ clientId: e.clientId }))
   on('ui.open', (_$, e) => {
     panes.set(e.id, isPlaced)
@@ -645,64 +639,59 @@ const sessionPane = (on: On, surfaces: readonly ('terminal' | 'desktop')[], isPl
     value: [...panes].map(([id, placed]) => ({ id, title: id, isShown: placed, isFocused: false, isPlaced: placed })),
   }))
 
-  return { opened, place: (id: string) => panes.set(id, true) }
+  return { opened }
 }
 
-const PANE = {
-  component: 'Pane',
-  requestId: 'session',
-  viewport: { columns: 60, rows: 40 },
-  props: { title: 'Session', isFocused: false, bodyColumns: 40, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} },
-} as const
+for (const surface of SURFACES) {
+  test(`the session panel and the band are in a pane of their own, opened on the ${surface}`, async ($, on) => {
+    const clock = mock.clock(on, { now: 0 })
+    const panes = sessionPane(on)
+    engine(on)
+    await $.session.start({ cwd: '/', surface, isInteractive: true })
+    await spawn($, 'Explore', 'Find callers')
+    await clock.advance(1_000)
 
-const attachDesktop = ($: Engine) => $.session.attach({ surface: 'desktop', clientId: 'desktop:default' })
+    expect(panes.opened).toContain('session')
+    const pane = await mountBand($, surface)
+    expect((await pane.find({ key: 'session-title' }))?.text.trim()).toBe('Session')
+    expect((await pane.find({ key: 'subagents-title' }))?.text.trim()).toBe('Subagents')
+    expect((await pane.find({ key: 'subagents' }))?.text).toContain('Find callers')
+  })
 
-test('on the desktop the session panel and the band move to a pane of their own', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  const panes = sessionPane(on, ['desktop'])
-  engine(on)
-  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
-  await attachDesktop($)
-  await spawn($, 'Explore', 'Find callers')
-  await clock.advance(1_000)
+  test(`nothing is drawn above the prompt on the ${surface}`, async ($, on) => {
+    const clock = mock.clock(on, { now: 0 })
+    sessionPane(on)
+    engine(on)
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Box } = $.ui.resolve(e)
 
-  expect(panes.opened).toContain('session')
-  const pane = await $.ui.mount({ plugin: 'alandovskis', surface: 'desktop', ...PANE })
-  expect((await pane.find({ key: 'session-title' }))?.text.trim()).toBe('Session')
-  expect((await pane.find({ key: 'subagents-title' }))?.text.trim()).toBe('Subagents')
-  expect((await pane.find({ key: 'subagents' }))?.text).toContain('Find callers')
-  const above = await $.ui.mount({ plugin: 'alandovskis', surface: 'desktop', ...band() })
-  expect(await above.find({ key: 'session' })).toBeUndefined()
-  expect(await above.find({ key: 'subagents' })).toBeUndefined()
-})
+      return <Box />
+    })
+    await $.session.start({ cwd: '/', surface, isInteractive: true })
+    await spawn($, 'Explore', 'Find callers')
+    await clock.advance(1_000)
 
-test('a session with a terminal keeps the band above the prompt', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  const panes = sessionPane(on, ['terminal', 'desktop'])
+    const above = await $.ui.mount({
+      plugin: 'alandovskis',
+      surface,
+      component: 'AbovePrompt',
+      viewport: { columns: 120, rows: 40, isFullscreen: true },
+      props: { hasSurvey: false, isWorking: true, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 12 }, view: {} },
+    })
+    expect(await above.find({ key: 'session' })).toBeUndefined()
+    expect(await above.find({ key: 'subagents' })).toBeUndefined()
+  })
+}
+
+test('/session-pane closes the pane, then opens it again', async ($, on) => {
+  const panes = sessionPane(on)
   engine(on)
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
-  await attachDesktop($)
-  await clock.advance(1_000)
+  const run = () =>
+    $.command.run({ command: 'session-pane', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
 
-  expect(panes.opened).not.toContain('session')
-  for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band() })
-    expect(await ui.find({ key: 'session' })).toBeDefined()
-    expect(await ui.find({ key: 'subagents' })).toBeDefined()
-  }
-})
-
-test('the band stays above the prompt until the desktop draws the pane', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  const panes = sessionPane(on, ['desktop'], false)
-  engine(on)
-  await $.session.start({ cwd: '/', surface: 'desktop', isInteractive: true })
-  await attachDesktop($)
-  await clock.advance(1_000)
-
-  const above = async () => (await $.ui.mount({ plugin: 'alandovskis', surface: 'desktop', ...band() })).find({ key: 'subagents' })
-  expect(await above()).toBeDefined()
-  panes.place('session')
-  await clock.advance(1_000)
-  expect(await above()).toBeUndefined()
+  expect(panes.opened).toEqual(['session'])
+  expect(await run()).toMatchObject({ text: 'Session pane closed.' })
+  expect(await run()).toMatchObject({ text: 'Session pane opened.' })
+  expect(panes.opened).toEqual(['session', 'session'])
 })

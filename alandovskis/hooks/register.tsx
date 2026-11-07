@@ -21,9 +21,8 @@ import {
 } from './subagents'
 
 // Each event is hooked once here and fed to the features: the /flow sidebar
-// (flow.tsx), and above the prompt the session panel (session.tsx) over the
-// subagent band (subagents.tsx), which on the desktop sit in a pane of their
-// own instead. Every
+// (flow.tsx), and the session panel (session.tsx) over the subagent band
+// (subagents.tsx) in the session pane. Every
 // call on `$` is made in this file, as the engine follows `$` no further.
 //
 // The hooks only observe, so they carry no .catch: one that fails is skipped,
@@ -34,8 +33,9 @@ import {
 const PANE = 'conversation-flow'
 const PANE_TITLE = 'Flow'
 const BAND_COMMAND = 'subagents'
-// The desktop's pane for the session panel and the subagent band, in its side
-// panel: above its prompt the two read as pasted images.
+// Not `session`: Claude Code ships a command of that name.
+const SESSION_COMMAND = 'session-pane'
+// The pane for the session panel and the subagent band.
 const SESSION_PANE = 'session'
 const SESSION_PANE_TITLE = 'Session'
 const PANE_SURFACE = 'desktop'
@@ -46,7 +46,7 @@ const now = atom({ plugin: 'alandovskis', key: 'subagentsNow' } as const, 0)
 const isBandHidden = atom({ plugin: 'alandovskis', key: 'subagentsHidden' } as const, false)
 const place = atom({ plugin: 'alandovskis', key: 'subagentsPlace' } as const, null)
 const figures = atom({ plugin: 'alandovskis', key: 'sessionGauge' } as const, null)
-const sessionPane = atom({ plugin: 'alandovskis', key: 'sessionPane' } as const, 'unopened')
+const isPaneClosed = atom({ plugin: 'alandovskis', key: 'sessionPaneClosed' } as const, false)
 
 // Where the person's choice to hide the band is kept across sessions.
 const BAND_HIDDEN_KEY = 'subagentsHidden'
@@ -141,21 +141,10 @@ const tick = async ($: EngineInterface) => {
   if (list.some(run => !isShown(run, at))) await update($, runs, all => all.filter(run => isShown(run, at)))
 }
 
-// Opens the session pane where the session draws on the desktop alone: a
-// terminal beside it keeps the band, and a pane the person closed stays shut.
+// Opens the session pane, unless the person closed it: it stays shut.
 const openSessionPane = async ($: EngineInterface) => {
-  const [state, surfaces] = await Promise.all([read($, sessionPane), $.session.surfaces()])
-  if (state === 'closed' || !surfaces.includes(PANE_SURFACE) || surfaces.includes('terminal')) return
-  const opened = await $.ui.open({ id: SESSION_PANE, title: SESSION_PANE_TITLE })
-  await update($, sessionPane, () => (opened.isPlaced ? 'shown' : 'waiting'))
-}
-
-// A pane opened unasked can wait undrawn for room; the band stays above the
-// prompt until the surface draws the pane.
-const checkSessionPane = async ($: EngineInterface) => {
-  if ((await read($, sessionPane)) !== 'waiting') return
-  const pane = (await $.ui.panes()).find(one => one.id === SESSION_PANE)
-  if (pane?.isPlaced === true) await update($, sessionPane, () => 'shown')
+  if (await read($, isPaneClosed)) return
+  await $.ui.open({ id: SESSION_PANE, title: SESSION_PANE_TITLE })
 }
 
 // The session panel over the subagent band in the rows given, or undefined
@@ -186,7 +175,8 @@ const sessionAndBand = async (
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'flow', description: 'Toggle the conversation flow sidebar' })
-    await $.command.register({ name: BAND_COMMAND, description: 'Hide or show the subagent band above the prompt' })
+    await $.command.register({ name: SESSION_COMMAND, description: 'Toggle the session pane in the side panel' })
+    await $.command.register({ name: BAND_COMMAND, description: 'Hide or show the subagent band in the session pane' })
     const stored = await $.store.get(BAND_HIDDEN_KEY)
     await update($, isBandHidden, () => stored === true)
     void landed($, "reading the session's place", readSessionPlace($, e.cwd))
@@ -197,7 +187,6 @@ export const register: Register = on => {
     $.clock.every(TICK_MS, () => {
       void landed($, 'a subagent band tick', tick($))
       void landed($, "rereading the session's figures", readFigures($))
-      void landed($, 'checking the session pane', checkSessionPane($))
     })
 
     return next(e)
@@ -210,12 +199,11 @@ export const register: Register = on => {
     return attached
   })
 
-  // Closed, the band is back above the prompt; by the person, for the session.
+  // Closed by the person, the pane stays shut for the session; /session-pane opens it again.
   on('ui.close', async ($, e, next) => {
     const closed = await next(e)
     if (e.id === SESSION_PANE) {
-      const state = e.origin.kind === 'person' ? 'closed' : 'unopened'
-      await landed($, 'closing the session pane', update($, sessionPane, () => state))
+      await landed($, 'closing the session pane', update($, isPaneClosed, () => e.origin.kind === 'person'))
     }
 
     return closed
@@ -230,6 +218,20 @@ export const register: Register = on => {
     await $.ui.open({ id: PANE, title: PANE_TITLE })
 
     return { text: 'Conversation flow opened.' }
+  })
+
+  // Unlike the automatic open, this one is asked for: it opens the pane also
+  // after the person closed it.
+  on('command.run', { command: SESSION_COMMAND }, async $ => {
+    if ((await $.ui.panes()).some(pane => pane.id === SESSION_PANE)) {
+      await $.ui.close({ id: SESSION_PANE })
+
+      return { text: 'Session pane closed.' }
+    }
+    const opened = await $.ui.open({ id: SESSION_PANE, title: SESSION_PANE_TITLE })
+    await update($, isPaneClosed, () => false)
+
+    return { text: opened.isPlaced ? 'Session pane opened.' : 'Session pane opened; it shows once there is room.' }
   })
 
   on('command.run', { command: BAND_COMMAND }, async $ => {
@@ -420,14 +422,5 @@ export const register: Register = on => {
     const { Box } = ui
 
     return (await sessionAndBand($, ui, e.surface, 'session-pane', room)) ?? <Box key="session-pane" />
-  })
-
-  // The session panel on top, the subagent band under it in the rows left;
-  // on the desktop, only while the session pane does not show them.
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
-    if (e.surface === PANE_SURFACE && (await read($, sessionPane)) === 'shown') return next(e)
-
-    return (await sessionAndBand($, $.ui.resolve(e), e.surface, 'above-prompt', e.props)) ?? next(e)
   })
 }

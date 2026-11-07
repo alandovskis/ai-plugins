@@ -72,13 +72,6 @@ export interface SessionGauge {
   week?: SessionLimit
 }
 
-/**
- * The session pane, which on the desktop holds the session panel and the
- * subagent band in place of the band above the prompt: not opened; open but
- * not yet drawn; drawn; or closed by the person, and not opened again.
- */
-export type SessionPaneState = 'unopened' | 'waiting' | 'shown' | 'closed'
-
 declare module 'claude-code' {
   interface PluginState {
     alandovskis: {
@@ -91,7 +84,8 @@ declare module 'claude-code' {
       subagentsPlace: Place | null
       /** null until the session's figures are first read. */
       sessionGauge: SessionGauge | null
-      sessionPane: SessionPaneState
+      /** The person closed the session pane, which then stays shut until /session-pane. */
+      sessionPaneClosed: boolean
     }
   }
 }

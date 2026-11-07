@@ -1,9 +1,9 @@
 import type { Elements, RenderChildren, RenderSurface } from 'claude-code'
 
-// A titled box above the prompt: the session panel's and the subagent band's.
+// A titled box in the session pane: the session panel's and the subagent band's.
 // The terminal draws it in a rounded border with the title over the top row.
-// Any other surface draws a bordered box as a card, and above its prompt a
-// card reads as a pasted image, so there it is plain rows, the title first.
+// Any other surface draws a bordered box as a card, and a card reads as a
+// pasted image, so there it is plain rows, the title first.
 
 // The rows the frame takes beyond its body: on the terminal its top and
 // bottom borders, elsewhere its title and one to spare.
