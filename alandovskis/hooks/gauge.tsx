@@ -11,7 +11,7 @@ const ERROR_PERCENT = 80
 // A whole percentage, 0 to 100.
 export const percentOf = (part: number, whole: number) => Math.max(0, Math.min(100, Math.floor((part / whole) * 100)))
 
-const levelOf = (percent: number): Color => {
+export const levelOf = (percent: number): Color => {
   if (percent >= ERROR_PERCENT) return 'error'
 
   return percent >= WARNING_PERCENT ? 'warning' : 'success'

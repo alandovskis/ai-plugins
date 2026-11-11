@@ -1,12 +1,12 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { Elements, EngineInterface, Register, RenderSurface } from 'claude-code'
 
 import type { FlowNode, FlowStatus, Place, RunStatus, SubagentCall } from '../types'
 import { parseStep } from '../issue-flow/step'
 import type { FoundStep } from '../issue-flow/step'
 import { appended, changed, flowView, seconds, withSpawn } from './flow'
 import { TEXT_MAX as WAITING_MAX, isShown as isIssueShown, issueRows, issueView, stepped } from './issueflow'
-import { PANEL_ROWS, gaugeOf, sameGauge, sessionView } from './session'
+import { effortOf, gaugeOf, panelRows, sameGauge, sessionView } from './session'
 import { AGENT_TOOLS, clip, detailOf, firstLine, statusOf } from './shared'
 import {
   LABEL_MAX,
@@ -25,8 +25,8 @@ import {
 } from './subagents'
 
 // Each event is hooked once here and fed to the features: the /flow sidebar
-// (flow.tsx), and above the prompt the session panel (session.tsx) over the
-// issue panel (issueflow.tsx) over the subagent band (subagents.tsx). Every
+// (flow.tsx), and the session panel (session.tsx) over the issue panel
+// (issueflow.tsx) over the subagent band (subagents.tsx) in the session pane. Every
 // call on `$` is made in this file, as the engine follows `$` no further.
 //
 // The hooks only observe, so they carry no .catch: one that fails is skipped,
@@ -37,6 +37,12 @@ import {
 const PANE = 'conversation-flow'
 const PANE_TITLE = 'Flow'
 const BAND_COMMAND = 'subagents'
+// Not `session`: Claude Code ships a command of that name.
+const SESSION_COMMAND = 'session-pane'
+// The pane for the session panel and the subagent band.
+const SESSION_PANE = 'session'
+const SESSION_PANE_TITLE = 'Session'
+const PANE_SURFACE = 'desktop'
 const ISSUES_COMMAND = 'issues'
 
 const nodes = atom({ plugin: 'alandovskis', key: 'flowNodes' } as const, [])
@@ -45,6 +51,8 @@ const now = atom({ plugin: 'alandovskis', key: 'subagentsNow' } as const, 0)
 const isBandHidden = atom({ plugin: 'alandovskis', key: 'subagentsHidden' } as const, false)
 const place = atom({ plugin: 'alandovskis', key: 'subagentsPlace' } as const, null)
 const figures = atom({ plugin: 'alandovskis', key: 'sessionGauge' } as const, null)
+const effort = atom({ plugin: 'alandovskis', key: 'sessionEffort' } as const, null)
+const isPaneClosed = atom({ plugin: 'alandovskis', key: 'sessionPaneClosed' } as const, false)
 const issueRuns = atom({ plugin: 'alandovskis', key: 'issueRuns' } as const, [])
 const isIssuesHidden = atom({ plugin: 'alandovskis', key: 'issuesHidden' } as const, false)
 
@@ -129,8 +137,9 @@ const readSessionWindow = async ($: EngineInterface) => {
 // Read each tick, as the model can change between turns and no event says so.
 const readFigures = async ($: EngineInterface) => {
   const [model, usage, at] = await Promise.all([$.session.model(), $.session.usage(), $.clock.now()])
-  const found = gaugeOf(model, usage, at)
-  if (!sameGauge(await read($, figures), found)) await update($, figures, () => found)
+  const before = await read($, figures)
+  const found = gaugeOf(model, usage, at, before)
+  if (!sameGauge(before, found)) await update($, figures, () => found)
 }
 
 // Moves the clock the band and the issue panel draw their times from, and
@@ -155,17 +164,75 @@ const recordStep = async ($: EngineInterface, found: FoundStep) => {
   await update($, now, () => at)
 }
 
+// Opens the session pane, unless the person closed it: it stays shut.
+const openSessionPane = async ($: EngineInterface) => {
+  if (await read($, isPaneClosed)) {
+    $.ui.log('alandovskis: the session pane stays shut, as the person closed it', { to: 'debug' })
+
+    return
+  }
+  const opened = await $.ui.open({ id: SESSION_PANE, title: SESSION_PANE_TITLE })
+  if (!opened.isPlaced) $.ui.log(`alandovskis: the session pane waits undrawn: ${opened.reason}`, { to: 'debug' })
+}
+
+// The session panel on top, the issue panel under it, and the subagent band
+// under both, in the rows given, or undefined when none has anything to draw.
+// The session panel takes its rows first; then an issue panel with issues in
+// it, and the band the rows left; but an empty issue panel yields to a band
+// with subagents in it, taking the rows the band leaves.
+const sessionAndBand = async (
+  $: EngineInterface,
+  ui: Pick<Elements[RenderSurface], 'Box' | 'Text'>,
+  surface: string,
+  key: string,
+  room: { maxRows: number; bodyColumns: number },
+) => {
+  const at = await read($, now)
+  const gauge = await read($, figures)
+  const panel = sessionView(ui, surface, gauge, await read($, effort), room.bodyColumns)
+  const rest = room.maxRows - (gauge === null ? 0 : panelRows(gauge))
+  const issueList = await read($, issueRuns)
+  const runList = await read($, runs)
+  const isIssuesShown = !(await read($, isIssuesHidden))
+  const isBandShown = !(await read($, isBandHidden))
+  const isIssuesFirst = issueList.some(run => isIssueShown(run, at)) || !runList.some(run => isShown(run, at))
+  let issueRoom = rest
+  let bandRoom = rest
+  if (isIssuesFirst) {
+    bandRoom -= isIssuesShown ? issueRows(issueList, at, rest) : 0
+  } else {
+    issueRoom -= isBandShown ? bandRows(runList, at, rest) : 0
+  }
+  const issues = isIssuesShown ? issueView(ui, surface, issueList, at, { ...room, maxRows: issueRoom }) : undefined
+  const band = isBandShown
+    ? bandView(ui, surface, runList, at, await read($, place), { ...room, maxRows: bandRoom })
+    : undefined
+  if (panel === undefined && issues === undefined && band === undefined) return undefined
+  const { Box } = ui
+
+  return (
+    <Box key={key} flexDirection="column">
+      {panel}
+      {issues}
+      {band}
+    </Box>
+  )
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'flow', description: 'Toggle the conversation flow sidebar' })
-    await $.command.register({ name: BAND_COMMAND, description: 'Hide or show the subagent band above the prompt' })
-    await $.command.register({ name: ISSUES_COMMAND, description: 'Hide or show the issue panel above the prompt' })
+    await $.command.register({ name: SESSION_COMMAND, description: 'Toggle the session pane in the side panel' })
+    await $.command.register({ name: BAND_COMMAND, description: 'Hide or show the subagent band in the session pane' })
+    await $.command.register({ name: ISSUES_COMMAND, description: 'Hide or show the issue panel in the session pane' })
     const stored = await $.store.get(BAND_HIDDEN_KEY)
     await update($, isBandHidden, () => stored === true)
     const issuesStored = await $.store.get(ISSUES_HIDDEN_KEY)
     await update($, isIssuesHidden, () => issuesStored === true)
     void landed($, "reading the session's place", readSessionPlace($, e.cwd))
     void landed($, "reading the session's figures", readFigures($))
+    // A reload finds the desktop attached already, and raises no attach.
+    void landed($, 'opening the session pane', openSessionPane($))
     // Runs until the module reloads, which raises session.start again.
     $.clock.every(TICK_MS, () => {
       void landed($, 'a band and issue panel tick', tick($))
@@ -173,6 +240,24 @@ export const register: Register = on => {
     })
 
     return next(e)
+  })
+
+  on('session.attach', { surface: PANE_SURFACE }, async ($, e, next) => {
+    const attached = await next(e)
+    await landed($, 'opening the session pane', openSessionPane($))
+
+    return attached
+  })
+
+  // Closed by the person with its mark or key, the pane stays shut for the session; /session-pane
+  // closes it the same way, and opens it again.
+  on('ui.close', async ($, e, next) => {
+    const closed = await next(e)
+    if (e.id === SESSION_PANE) {
+      await landed($, 'closing the session pane', update($, isPaneClosed, () => e.origin.kind === 'person'))
+    }
+
+    return closed
   })
 
   on('command.run', { command: 'flow' }, async $ => {
@@ -184,6 +269,22 @@ export const register: Register = on => {
     await $.ui.open({ id: PANE, title: PANE_TITLE })
 
     return { text: 'Conversation flow opened.' }
+  })
+
+  // Unlike the automatic open, this one is asked for: it opens the pane also
+  // after the person closed it.
+  on('command.run', { command: SESSION_COMMAND }, async $ => {
+    if ((await $.ui.panes()).some(pane => pane.id === SESSION_PANE)) {
+      await $.ui.close({ id: SESSION_PANE })
+      // The close hook ran first and took this one, a plugin's own, for no latch.
+      await update($, isPaneClosed, () => true)
+
+      return { text: 'Session pane closed.' }
+    }
+    const opened = await $.ui.open({ id: SESSION_PANE, title: SESSION_PANE_TITLE })
+    await update($, isPaneClosed, () => false)
+
+    return { text: opened.isPlaced ? 'Session pane opened.' : 'Session pane opened; it shows once there is room.' }
   })
 
   on('command.run', { command: BAND_COMMAND }, async $ => {
@@ -339,6 +440,18 @@ export const register: Register = on => {
   on('turn.step', async function* ($, e, next) {
     const stepped = yield* next(e)
     const { agentId } = e
+    // The main loop's request says how hard the session asks the model to think.
+    if (agentId === undefined) {
+      const level = effortOf(e.effort)
+      // Written when it moved only, so a steady level redraws nothing; one this build
+      // has no cells for is logged once, as it looks like a model without effort.
+      if ((await read($, effort)) !== level) {
+        if (level === null && e.effort !== undefined) {
+          $.ui.log(`alandovskis: the effort bar has no cells for ${JSON.stringify(e.effort)}`, { to: 'debug' })
+        }
+        await landed($, "recording the session's effort", update($, effort, () => level))
+      }
+    }
     const { usage } = stepped
     if (agentId !== undefined && usage !== null) {
       await landed($, `measuring subagent ${agentId}'s context`, update($, runs, list => measured(list, agentId, usage)))
@@ -380,41 +493,11 @@ export const register: Register = on => {
     flowView($.ui.resolve(e), await read($, nodes), e.props.bodyColumns),
   )
 
-  // The session panel on top, the issue panel under it, and the subagent band
-  // under both. The session panel takes its rows first; then an issue panel
-  // with issues in it, and the band the rows left; but an empty issue panel
-  // yields to a band with subagents in it, taking the rows the band leaves.
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.props.hasSurvey) return next(e)
+  on('ui.render', { component: 'Pane', requestId: SESSION_PANE }, async ($, e) => {
     const ui = $.ui.resolve(e)
-    const at = await read($, now)
-    const panel = sessionView(ui, await read($, figures), e.props.bodyColumns)
-    const rest = e.props.maxRows - (panel === undefined ? 0 : PANEL_ROWS)
-    const issueList = await read($, issueRuns)
-    const runList = await read($, runs)
-    const isIssuesShown = !(await read($, isIssuesHidden))
-    const isBandShown = !(await read($, isBandHidden))
-    const isIssuesFirst = issueList.some(run => isIssueShown(run, at)) || !runList.some(run => isShown(run, at))
-    let issueRoom = rest
-    let bandRoom = rest
-    if (isIssuesFirst) {
-      bandRoom -= isIssuesShown ? issueRows(issueList, at, rest) : 0
-    } else {
-      issueRoom -= isBandShown ? bandRows(runList, at, rest) : 0
-    }
-    const issues = isIssuesShown ? issueView(ui, issueList, at, { ...e.props, maxRows: issueRoom }) : undefined
-    const band = isBandShown
-      ? bandView(ui, runList, at, await read($, place), { ...e.props, maxRows: bandRoom })
-      : undefined
-    if (panel === undefined && issues === undefined && band === undefined) return next(e)
+    const room = { maxRows: e.props.scroll.bodyRows, bodyColumns: e.props.bodyColumns }
     const { Box } = ui
 
-    return (
-      <Box key="above-prompt" flexDirection="column">
-        {panel}
-        {issues}
-        {band}
-      </Box>
-    )
+    return (await sessionAndBand($, ui, e.surface, 'session-pane', room)) ?? <Box key="session-pane" />
   })
 }

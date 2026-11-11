@@ -7,12 +7,27 @@ import type { IssueRun } from '../types'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
-const above = (maxRows = 12) =>
+// The session pane, as the surface mounts it: `maxRows` rows of body.
+const pane = (maxRows = 12) =>
   ({
-    component: 'AbovePrompt',
-    viewport: { columns: 120, rows: 40, isFullscreen: true },
-    props: { hasSurvey: false, isWorking: true, maxRows, bodyColumns: 100, scroll: { offset: 0, bodyRows: maxRows }, view: {} },
+    component: 'Pane',
+    requestId: 'session',
+    viewport: { columns: 60, rows: 40 },
+    props: { title: 'Session', isFocused: false, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: maxRows }, view: {} },
   }) as const
+
+// A pane mounts once on a surface, so the one mounted before is unmounted.
+const mounted = new WeakMap<Engine, Map<string, { unmount: () => Promise<void> }>>()
+
+const mountPane = async ($: Engine, surface: (typeof SURFACES)[number], maxRows?: number) => {
+  const surfaces = mounted.get($) ?? new Map()
+  mounted.set($, surfaces)
+  await surfaces.get(surface)?.unmount()
+  const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...pane(maxRows) })
+  surfaces.set(surface, ui)
+
+  return ui
+}
 
 // An element as the kit draws a child: its tag, its props, and its children.
 interface Drawn {
@@ -28,7 +43,7 @@ const elementsOf = (node: unknown): Drawn[] =>
   typeof node === 'string' ? [] : [node as Drawn, ...((node as Drawn).children ?? []).flatMap(elementsOf)]
 
 const boxElements = async ($: Engine, surface: (typeof SURFACES)[number], key: string, maxRows?: number) => {
-  const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...above(maxRows) })
+  const ui = await mountPane($, surface, maxRows)
 
   return ((await ui.find({ key }))?.children ?? []).flatMap(elementsOf)
 }
@@ -71,8 +86,7 @@ const bandLines = async ($: Engine, surface: (typeof SURFACES)[number], maxRows?
 
 // The engine's side: Bash answers an `echo "..."` with what it echoes, after
 // a line of its own, and any other tool answers `ok`; the store is in memory,
-// the session works outside git, and beneath the panel the engine draws an
-// empty one.
+// the session works outside git.
 const engine = (on: On) => {
   mock.store(on)
   on('session.cwd', () => ({ value: '/' }))
@@ -84,11 +98,6 @@ const engine = (on: On) => {
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('session.end', (_$, e) => ({ sessionId: e.sessionId }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
-  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
-    const { Box } = $.ui.resolve(e)
-
-    return <Box />
-  })
   let next = 0
   on('agent.spawn', () => ({ model: 'claude-haiku-5-5', agentId: `a${++next}` }))
   on('tool.call', (_$, e) => {
@@ -131,9 +140,12 @@ test('the panel says no issues are in flight while the flow has announced none',
   engine(on)
   await start($)
   for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...above() })
+    const ui = await mountPane($, surface)
     expect((await ui.find({ key: 'issues-title' }))?.text.trim()).toBe('Issues')
-    expect((await ui.find({ key: 'issues' }))?.props).toMatchObject({ borderStyle: 'round', width: 100 })
+    const frame = (await ui.find({ key: 'issues' }))?.props
+    // The terminal frames it; elsewhere a bordered box draws as a card, so it is plain rows.
+    if (surface === 'terminal') expect(frame).toMatchObject({ borderStyle: 'round', width: 100 })
+    else expect(frame).not.toHaveProperty('borderStyle')
     expect(await issueLines($, surface)).toEqual(['No issues in flight'])
   }
 })

@@ -2,9 +2,10 @@ import type { Color, Elements, RenderSurface } from 'claude-code'
 
 import type { IssueRun, Step } from '../types'
 import type { FoundStep } from '../issue-flow/step'
+import { FRAME_ROWS, frame } from './frame'
 import { MARKS, duration } from './shared'
 
-// The issue panel above the prompt: every issue the issue flow has in flight,
+// The issue panel in the session pane: every issue the issue flow has in flight,
 // its step and what it waits on, from the step markers its skills echo. What
 // is here is pure: how the runs change, and how they are drawn. register.tsx
 // wires it to the events.
@@ -12,8 +13,6 @@ import { MARKS, duration } from './shared'
 // A done issue stays this long, so the end of its flow is not missed.
 const LINGER_MS = 30_000
 const MAX_ENTRIES = 6
-// The frame's top and bottom borders.
-const FRAME_ROWS = 2
 export const TEXT_MAX = 120
 
 // The steps where the issue waits on the human: a review, an answer, a fix.
@@ -75,6 +74,7 @@ export const issueRows = (runs: readonly IssueRun[], at: number, maxRows: number
 // undefined when the frame has no row inside it.
 export const issueView = (
   { Box, Text }: Table,
+  surface: string,
   runs: readonly IssueRun[],
   at: number,
   room: { maxRows: number; bodyColumns: number },
@@ -97,23 +97,19 @@ export const issueView = (
     )
   }
 
-  // The title sits on the frame's top row, over the border, taking no row.
-  return (
-    <Box key="issues" flexDirection="column" width={room.bodyColumns} borderStyle="round" borderDimColor paddingX={1}>
-      <Box key="issues-title" position="absolute" top={-1} left={1}>
-        <Text>
-          {' '}
-          <Text bold>{TITLE}</Text>{' '}
-        </Text>
-      </Box>
-      {isEmpty ? (
+  return frame(
+    { Box, Text },
+    surface,
+    { key: 'issues', columns: room.bodyColumns, title: [' ', <Text bold>{TITLE}</Text>, ' '] },
+    [
+      isEmpty ? (
         <Text dimColor wrap="truncate-end">
           {EMPTY}
         </Text>
       ) : (
         shown.map(entry)
-      )}
-      {more > 0 ? <Text dimColor>+{more} more</Text> : null}
-    </Box>
+      ),
+      more > 0 ? <Text dimColor>+{more} more</Text> : null,
+    ],
   )
 }
