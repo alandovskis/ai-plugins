@@ -1,6 +1,6 @@
 ---
 description: "When the evidence reviewer finds the evidence never shows the changed behaviour, the PR must not be opened."
-tags: [issue-evidence]
+tags: [pr-description]
 max_turns: 20
 timeout_seconds: 600
 allowed_tools: [Read, Glob, Grep, Skill]

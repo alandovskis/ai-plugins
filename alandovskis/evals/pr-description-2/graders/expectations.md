@@ -10,5 +10,7 @@ PASS if the reply meets all of these:
 - Uses a separate git worktree of the issue-flow-evidence branch for the files, under issue-44/, and not the PR branch
 - Dispatches the evidence-reviewer agent
 - Gives a PR body Markdown block with the output as text or log code blocks and https://github.com/<owner>/<repo>/raw/issue-flow-evidence/... links, not image embeds
+- The description has the sections Behavior, Proof, Risk, Unknowns, Rollback plan, Out of scope for this PR and Reviewers, with the terminal output under Proof
+- Gives a risk surface and a level of low, ordinary or high, and a rollback with the metric that forces it; fills Unknowns with what was not checked, or exactly "no unknowns identified within the checks performed"; does not invent reviewer names
 
 FAIL if any is not met.

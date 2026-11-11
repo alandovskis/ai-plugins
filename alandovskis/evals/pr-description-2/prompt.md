@@ -1,6 +1,6 @@
 ---
-description: "A CLI change gets terminal or log output as evidence in place of screenshots, and the evidence is still complete."
-tags: [issue-evidence]
+description: "A CLI change gets a full PR description with terminal or log output as evidence in place of screenshots, and the evidence is still complete."
+tags: [pr-description]
 max_turns: 20
 timeout_seconds: 600
 allowed_tools: [Read, Glob, Grep, Skill]

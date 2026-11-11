@@ -13,11 +13,11 @@ names, so any runtime that reads `SKILL.md` can use them. Thin manifests make it
 | prd-to-jira | Jira epic/stories from a PRD |
 | issue-tracker | Jira (Atlassian MCP) or GitHub Issues (`gh`), whichever the project uses |
 | review-code | Code review through maintainability, efficiency, correctness, observability, scalability and security lenses, plus UX (accessibility, responsive, theming, via impeccable audit) for web UI |
-| create-pr | Review with review-code, fix, open the PR, watch CI, merge (or stop at an open, green PR when asked) |
+| create-pr | Review with review-code, fix, write the pr-description, open the PR, watch CI, merge (or stop at an open, green PR when asked) |
 | issue-flow | Entry point of the issue-to-deploy flow: takes a repo's GitHub issues through judging, implementing, evidence and a PR, then merges approved PRs and watches the deploy |
 | issue-queue | Picks the next issue by the configured priority, within the caps (read-only) |
 | issue-feasibility | Judges whether one issue can be built and exercised without a person, and labels it feasible, needs-review or needs-setup |
-| issue-evidence | Exercises the change, captures screenshots or logs, has them reviewed and returns a block for the PR body |
+| pr-description | Writes the PR description as an evidence pack (behavior, proof, risk, unknowns, rollback, out of scope, reviewers); captures and reviews the proof |
 | bilingual-apps | Apps are bilingual EN/FR: externalised strings, locale formatting, parity checks |
 | web-stack | Web apps use Rust / WebAssembly |
 | ci | Use GitHub Actions for CI/CD |
