@@ -1,6 +1,6 @@
 ---
 description: "A CLI change gets terminal or log output as evidence in place of screenshots, and the evidence is still complete."
-tags: [issue-evidence]
+tags: [work-evidence]
 max_turns: 20
 timeout_seconds: 600
 allowed_tools: [Read, Glob, Grep, Skill]

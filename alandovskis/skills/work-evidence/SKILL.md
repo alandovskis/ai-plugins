@@ -1,9 +1,9 @@
 ---
-name: issue-evidence
-description: Use when a GitHub issue's change has been implemented in a worktree and evidence that it works must be captured and attached to the pull request, or when asked to record screenshots, terminal captures or logs showing a feature working before opening a PR.
+name: work-evidence
+description: Use when a change has been implemented in a worktree and evidence that it works must be captured and attached to the pull request (create-pr does this for every PR), or when asked to record screenshots, terminal captures or logs showing a feature working before opening a PR.
 ---
 
-# Issue evidence: show the change working
+# Work evidence: show the change working
 
 Runs after implementation. It exercises the changed behaviour the way the project says to, captures an ordered record of it, stores the files outside the PR branch, has a reviewer check them, and returns a block for the PR body. It uses the `gh` and `git` CLIs and the project config in `.github/issue-flow.json` (schema in `issue-flow/config.md`). Before starting, announce the step:
 
@@ -13,7 +13,7 @@ echo "issue-flow: step issue=<n> step=evidence"
 
 ## Input
 
-The worktree path holding the implemented change, its PR branch, the issue number, and `howToExercise` from the feasibility verdict.
+The worktree path holding the implemented change, its PR branch, the issue number, and `howToExercise` from the feasibility verdict. For a PR with no issue, the caller gives the branch's slug in place of the issue number (used wherever `issue-<n>` appears) and `howToExercise` is worked out from the diff.
 
 ## Steps
 
