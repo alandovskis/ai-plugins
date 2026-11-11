@@ -1,6 +1,6 @@
 ---
-description: "A web feature gets ordered, captioned screenshots committed to the evidence branch and embedded in the PR body."
-tags: [work-evidence]
+description: "A web feature gets a full PR description with ordered, captioned screenshots committed to the evidence branch and embedded in the PR body."
+tags: [pr-description]
 max_turns: 20
 timeout_seconds: 600
 allowed_tools: [Read, Glob, Grep, Skill]
