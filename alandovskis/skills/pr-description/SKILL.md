@@ -19,7 +19,7 @@ The worktree path holding the implemented change, its PR branch, the issue numbe
 
 1. Read `.github/issue-flow.json` for `run` and `evidence`. Follow that text, not an assumption: `run` says how to launch and drive the app, `evidence` says how to capture it. Never assume a browser; a CLI, library, service or embedded project is evidenced with terminal captures, test output or logs. Launch and drive the app the way the `run` skill does, from the worktree.
 2. Record the head SHA the evidence is captured at (`git -C <worktree> rev-parse HEAD`); the caller compares it with the PR's head and recaptures if they differ. Exercise the change as `howToExercise` describes, one step at a time. Capture a numbered sequence of steps, each `{ caption, file }`: the caption states the action taken and the result seen (for example "3. Toggle dark mode: the page turns dark"), the file is the capture (screenshot, terminal capture, or text/log output). Cover every behaviour the issue asks for, including the result and not only the setup. Write captures to a scratch directory outside the worktree. Exercise the change with test credentials and fixtures, and never dump the environment or config files (`env`, `printenv`, `cat .env`) into a capture.
-3. Dispatch the `evidence-reviewer` agent with the issue number and the ordered steps with the local paths of their captured files in the scratch directory. Do this before anything is pushed. Do not judge the evidence yourself. It returns `{ verdict, gaps }`. Before dispatching, read every capture yourself for secrets and personal data (tokens, keys, `Authorization` or cookie headers, connection strings, emails, names) and redact them or recapture without them; captures are published and pasted into the PR body, and a pushed secret stays in the branch history. If a secret cannot be removed from a capture, treat the step as `gaps` and publish nothing.
+3. Dispatch the `evidence-reviewer` agent with the issue number and the ordered steps with the local paths of their captured files in the scratch directory. Do this before anything is pushed. Do not judge the evidence yourself. It returns `{ verdict, gaps }`. Before dispatching, read every capture yourself for secrets and personal data (tokens, keys, `Authorization` or cookie headers, connection strings, emails, names) and redact them or recapture without them; captures are published and pasted into the PR body, and a pushed secret stays in the branch history. If a secret cannot be removed from a capture (for example in a screenshot), recapture without it; if that is not possible, publish nothing and report it to the caller as a gap.
 4. If `verdict` is `gaps`, the evidence is incomplete: the PR must not be opened. Publish nothing; rejected evidence is never pushed. Report the gaps to the caller, who fixes the change or recaptures; do not return a PR-body block as if the evidence were complete.
 5. If `verdict` is `pass`, publish the files to the branch `issue-flow-evidence`, never to the PR branch. Use a separate, detached worktree checkout of that branch (no local branch is checked out, so concurrent publishes do not block each other) so the PR worktree stays clean:
 
@@ -28,7 +28,7 @@ git fetch origin issue-flow-evidence
 git worktree add --detach <scratch>/evidence origin/issue-flow-evidence
 ```
 
-If the branch does not exist, create it as an orphan (`git worktree add --detach <scratch>/evidence HEAD`, then `git -C <scratch>/evidence checkout --orphan issue-flow-evidence` and `git -C <scratch>/evidence rm -rf .`). Copy the files into `issue-<n>/` there, then commit and push, rebasing first so a stale local branch or a concurrent push is not rejected as non-fast-forward (skip the pull for a brand-new orphan branch):
+If the branch does not exist, create it as an orphan (`git worktree add --detach <scratch>/evidence HEAD`, then `git -C <scratch>/evidence checkout --orphan -B issue-flow-evidence` and `git -C <scratch>/evidence rm -rf .`). Copy the files into `issue-<n>/` there, then commit and push, rebasing first so a stale local branch or a concurrent push is not rejected as non-fast-forward (skip the pull for a brand-new orphan branch):
 
 ```
 git -C <scratch>/evidence add issue-<n>
@@ -38,7 +38,7 @@ git -C <scratch>/evidence push origin HEAD:issue-flow-evidence
 git worktree remove <scratch>/evidence
 ```
 
-If the push still fails, remove the evidence worktree anyway (`git worktree remove --force <scratch>/evidence`) and report the failure instead of a PR-body block.
+If the push is rejected, repeat the `pull --rebase` and `push` up to three times (for a brand-new orphan branch, `fetch` and rebase onto `origin/issue-flow-evidence` first if another run created it meanwhile). If it still fails, remove the evidence worktree anyway (`git worktree remove --force <scratch>/evidence`) and report the failure instead of a PR-body block.
 
 6. Return the description below.
 
