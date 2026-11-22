@@ -4,12 +4,27 @@ import type { On } from 'claude-code'
 
 const SURFACES = ['terminal', 'desktop'] as const
 
+// The session pane, as the surface mounts it: `maxRows` rows of body.
 const band = (maxRows = 12) =>
   ({
-    component: 'AbovePrompt',
-    viewport: { columns: 120, rows: 40, isFullscreen: true },
-    props: { hasSurvey: false, isWorking: true, maxRows, bodyColumns: 100, scroll: { offset: 0, bodyRows: maxRows }, view: {} },
+    component: 'Pane',
+    requestId: 'session',
+    viewport: { columns: 60, rows: 40 },
+    props: { title: 'Session', isFocused: false, bodyColumns: 100, placement: 'dock', scroll: { offset: 0, bodyRows: maxRows }, view: {} },
   }) as const
+
+// A pane mounts once on a surface, so the one mounted before is unmounted.
+const mounted = new WeakMap<Engine, Map<string, { unmount: () => Promise<void> }>>()
+
+const mountBand = async ($: Engine, surface: (typeof SURFACES)[number], spec: ReturnType<typeof band> = band()) => {
+  const surfaces = mounted.get($) ?? new Map()
+  mounted.set($, surfaces)
+  await surfaces.get(surface)?.unmount()
+  const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...spec })
+  surfaces.set(surface, ui)
+
+  return ui
+}
 
 // An element as the kit draws a child: its tag, its props, and its children.
 interface Drawn {
@@ -28,7 +43,7 @@ const elementsOf = (node: unknown): Drawn[] =>
 // What the box keyed `key` draws: the subagent band (`subagents`) or the
 // session panel over it (`session`); nothing while the box is not drawn.
 const boxElements = async ($: Engine, surface: (typeof SURFACES)[number], key: string, maxRows?: number) => {
-  const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band(maxRows) })
+  const ui = await mountBand($, surface, band(maxRows))
 
   return ((await ui.find({ key }))?.children ?? []).flatMap(elementsOf)
 }
@@ -42,6 +57,9 @@ const rowsIn = (elements: readonly Drawn[]) =>
 
 const bandLines = async ($: Engine, surface: (typeof SURFACES)[number], maxRows?: number) =>
   rowsIn(await boxElements($, surface, 'subagents', maxRows))
+
+const usageLines = async ($: Engine, surface: (typeof SURFACES)[number]) =>
+  rowsIn(await boxElements($, surface, 'session-usage'))
 
 const panelLines = async ($: Engine, surface: (typeof SURFACES)[number]) => rowsIn(await boxElements($, surface, 'session'))
 
@@ -75,10 +93,10 @@ const spawn = ($: Engine, subagentType: string, description: string) =>
 const stepTokens = new Map<string, number>()
 
 // The engine raising turn.step for one model response, read to its end.
-const step = async ($: Engine, agentId: string | undefined, tokens: number) => {
+const step = async ($: Engine, agentId: string | undefined, tokens: number, effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max') => {
   const turnId = `step-${crypto.randomUUID()}`
   stepTokens.set(turnId, tokens)
-  const stream = $.turn.step({ turnId, index: 0, model: 'm', messageCount: 1, ...(agentId === undefined ? {} : { agentId }) })
+  const stream = $.turn.step({ turnId, index: 0, model: 'm', messageCount: 1, ...(effort === undefined ? {} : { effort }), ...(agentId === undefined ? {} : { agentId }) })
   for await (const _chunk of stream) {
     // Drained: the result settles once the stream is read to its end.
   }
@@ -158,11 +176,6 @@ const engine = (on: On, repos: Repos = {}, where = { cwd: '/' }, session: Sessio
   })
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
-  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
-    const { Box } = $.ui.resolve(e)
-
-    return <Box />
-  })
   let next = 0
   on('agent.spawn', (_$, e) => ({ model: MODELS[e.subagentType] ?? 'claude-opus-5-5', agentId: `a${++next}` }))
   on('tool.call', () => ({ result: 'ok' as never, text: 'ok' }))
@@ -172,7 +185,7 @@ const engine = (on: On, repos: Repos = {}, where = { cwd: '/' }, session: Sessio
 test('the band says there are no subagents while none has run', async ($, on) => {
   engine(on)
   for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band() })
+    const ui = await mountBand($, surface)
     expect((await ui.find({ key: 'subagents-title' }))?.text.trim()).toBe('Subagents')
     expect(await bandLines($, surface)).toEqual(['No subagents'])
   }
@@ -201,19 +214,34 @@ test('a running subagent shows its model, task, time, calls and latest call', as
   }
 })
 
-test('the band is framed by a border with its title on it', async ($, on) => {
+test('on the terminal the band is framed by a border with its title on it', async ($, on) => {
   mock.clock(on, { now: 0 })
   engine(on)
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   await spawn($, 'Explore', 'Find callers')
 
-  for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band() })
-    expect((await ui.find({ key: 'subagents' }))?.props).toMatchObject({ borderStyle: 'round', width: 100 })
-    const title = await ui.find({ key: 'subagents-title' })
-    expect(title?.props).toMatchObject({ position: 'absolute', top: -1 })
-    expect(title?.text.trim()).toBe('Subagents')
-  }
+  const ui = await mountBand($, 'terminal')
+  expect((await ui.find({ key: 'subagents' }))?.props).toMatchObject({ borderStyle: 'round', width: 100 })
+  const title = await ui.find({ key: 'subagents-title' })
+  expect(title?.props).toMatchObject({ position: 'absolute', top: -1 })
+  expect(title?.text.trim()).toBe('Subagents')
+})
+
+// The desktop draws a bordered box as a card, which over the prompt reads as a
+// pasted image: there the band is rows, its title the first.
+test('on the desktop the band has no border, its title its first row', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await spawn($, 'Explore', 'Find callers')
+
+  const ui = await mountBand($, 'desktop')
+  const box = await ui.find({ key: 'subagents' })
+  expect(box?.props).not.toHaveProperty('borderStyle')
+  expect(box?.props).not.toHaveProperty('width')
+  const title = await ui.find({ key: 'subagents-title' })
+  expect(title?.props).not.toHaveProperty('position')
+  expect(title?.text.trim()).toBe('Subagents')
 })
 
 test('each model family has a badge colour of its own, and is named as Anthropic writes it', async ($, on) => {
@@ -335,7 +363,7 @@ test('/clear empties the band', async ($, on) => {
 })
 
 const title = async ($: Engine, surface: (typeof SURFACES)[number], bodyColumns = 100) => {
-  const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band(), props: { ...band().props, bodyColumns } })
+  const ui = await mountBand($, surface, { ...band(), props: { ...band().props, bodyColumns } })
 
   return (await ui.find({ key: 'subagents-title' }))?.text
 }
@@ -503,13 +531,20 @@ test('the session panel shows the model, how full the context is and the rate li
 
   // It shows with no subagent running, framed and titled as the band is.
   for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band() })
-    expect((await ui.find({ key: 'session' }))?.props).toMatchObject({ borderStyle: 'round', width: 100 })
+    const ui = await mountBand($, surface)
+    const frame = (await ui.find({ key: 'session' }))?.props
+    if (surface === 'terminal') expect(frame).toMatchObject({ borderStyle: 'round', width: 100 })
+    else expect(frame).not.toHaveProperty('borderStyle')
     expect((await ui.find({ key: 'session-title' }))?.text.trim()).toBe('Session')
-    expect(await panelLines($, surface)).toEqual([
-      ' Opus 5.5   Context ██░░░░░░░░ 18%  5h ██████░░░░ 55% ↻ 2h 10m  Week ████████░░ 81% ↻ 3d 4h',
+    // The context and the limits have a box of their own under the model's,
+    // the limits on a row apart from the context.
+    expect(await panelLines($, surface)).toEqual([' Opus 5.5 '])
+    expect(await usageLines($, surface)).toEqual([
+      'Context ██░░░░░░░░ 18%',
+      '5h ██████░░░░ 55% ↻ 2h 10m  Week ████████░░ 81% ↻ 3d 4h',
     ])
-    expect(gaugeParts(await boxElements($, surface, 'session'))).toEqual([
+    expect((await (await mountBand($, surface)).find({ key: 'session-usage-title' }))?.text.trim()).toBe('Context and limits')
+    expect(gaugeParts(await boxElements($, surface, 'session-usage'))).toEqual([
       ['██', 'success'],
       ['░░░░░░░░', undefined],
       ['18%', 'success'],
@@ -520,7 +555,8 @@ test('the session panel shows the model, how full the context is and the rate li
       ['░░', undefined],
       ['81%', 'error'],
     ])
-    expect(await bandLines($, surface)).toEqual(['No subagents'])
+    // The pane has rows for the two boxes, the issue panel and the band.
+    expect(await bandLines($, surface, 20)).toEqual(['No subagents'])
   }
 })
 
@@ -542,7 +578,8 @@ test('the session panel leaves out what it has no figure for, and follows a chan
   session.rateLimits = [{ kind: 'seven_day', percentUsed: 100 }]
   await clock.advance(1_000)
   for (const surface of SURFACES) {
-    expect(await panelLines($, surface)).toEqual([' Sonnet 5.5   Context ░░░░░░░░░░ 3%  Week ██████████ 100%'])
+    expect(await panelLines($, surface)).toEqual([' Sonnet 5.5 '])
+    expect(await usageLines($, surface)).toEqual(['Context ░░░░░░░░░░ 3%', 'Week ██████████ 100%'])
   }
 })
 
@@ -565,20 +602,6 @@ test('/subagents hides the band but not the session panel', async ($, on) => {
   }
 })
 
-test('a survey has the whole band to itself', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  engine(on)
-  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
-  await spawn($, 'Explore', 'Find callers')
-  await clock.advance(1_000)
-
-  for (const surface of SURFACES) {
-    const ui = await $.ui.mount({ plugin: 'alandovskis', surface, ...band(), props: { ...band().props, hasSurvey: true } })
-    expect(await ui.find({ key: 'session' })).toBeUndefined()
-    expect(await ui.find({ key: 'subagents' })).toBeUndefined()
-  }
-})
-
 test('each rate limit counts down to its reset, by the minute', async ($, on) => {
   const clock = mock.clock(on, { now: 0 })
   const session: Session = {
@@ -595,7 +618,7 @@ test('each rate limit counts down to its reset, by the minute', async ($, on) =>
 
   // Rounded up, so a reset 41 minutes and a second away reads 42m; a window
   // the engine gives no time for shows none.
-  const fiveHour = async () => (await panelLines($, 'terminal'))[0]?.match(/5h \S+ \d+%(.*?)  Week/)?.[1]
+  const fiveHour = async () => (await usageLines($, 'terminal'))[0]?.match(/5h \S+ \d+%(.*?)(  Week|$)/)?.[1] ?? ''
   expect(await fiveHour()).toBe(' ↻ 42m')
   await clock.advance(MINUTE)
   expect(await fiveHour()).toBe(' ↻ 41m')
@@ -604,4 +627,179 @@ test('each rate limit counts down to its reset, by the minute', async ($, on) =>
   expect(await fiveHour()).toBe(' ↻ 1m')
   await clock.advance(1_000)
   expect(await fiveHour()).toBe('')
+})
+
+// The panes the engine holds, as the tests set them.
+const sessionPane = (on: On, isPlaced = true) => {
+  const panes = new Map<string, boolean>()
+  const opened: string[] = []
+  on('session.attach', (_$, e) => ({ clientId: e.clientId }))
+  on('ui.open', (_$, e) => {
+    panes.set(e.id, isPlaced)
+    opened.push(e.id)
+
+    return { value: isPlaced ? { isPlaced: true as const } : { isPlaced: false as const, reason: 'narrow' } }
+  })
+  on('ui.close', (_$, e) => {
+    panes.delete(e.id)
+
+    return { value: undefined }
+  })
+  on('ui.panes', () => ({
+    value: [...panes].map(([id, placed]) => ({ id, title: id, isShown: placed, isFocused: false, isPlaced: placed })),
+  }))
+
+  return { opened }
+}
+
+for (const surface of SURFACES) {
+  test(`the session panel and the band are in a pane of their own, opened on the ${surface}`, async ($, on) => {
+    const clock = mock.clock(on, { now: 0 })
+    const panes = sessionPane(on)
+    engine(on)
+    await $.session.start({ cwd: '/', surface, isInteractive: true })
+    await spawn($, 'Explore', 'Find callers')
+    await clock.advance(1_000)
+
+    expect(panes.opened).toContain('session')
+    const pane = await mountBand($, surface)
+    expect((await pane.find({ key: 'session-title' }))?.text.trim()).toBe('Session')
+    expect((await pane.find({ key: 'subagents-title' }))?.text.trim()).toBe('Subagents')
+    expect((await pane.find({ key: 'subagents' }))?.text).toContain('Find callers')
+  })
+
+  test(`nothing is drawn above the prompt on the ${surface}`, async ($, on) => {
+    const clock = mock.clock(on, { now: 0 })
+    sessionPane(on)
+    engine(on)
+    on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+      const { Box } = $.ui.resolve(e)
+
+      return <Box />
+    })
+    await $.session.start({ cwd: '/', surface, isInteractive: true })
+    await spawn($, 'Explore', 'Find callers')
+    await clock.advance(1_000)
+
+    const above = await $.ui.mount({
+      plugin: 'alandovskis',
+      surface,
+      component: 'AbovePrompt',
+      viewport: { columns: 120, rows: 40, isFullscreen: true },
+      props: { hasSurvey: false, isWorking: true, maxRows: 12, bodyColumns: 100, scroll: { offset: 0, bodyRows: 12 }, view: {} },
+    })
+    expect(await above.find({ key: 'session' })).toBeUndefined()
+    expect(await above.find({ key: 'subagents' })).toBeUndefined()
+  })
+}
+
+test('/session-pane closes the pane, then opens it again', async ($, on) => {
+  const panes = sessionPane(on)
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const run = () =>
+    $.command.run({ command: 'session-pane', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+
+  expect(panes.opened).toEqual(['session'])
+  expect(await run()).toMatchObject({ text: 'Session pane closed.' })
+  expect(await run()).toMatchObject({ text: 'Session pane opened.' })
+  expect(panes.opened).toEqual(['session', 'session'])
+})
+
+test('a pane closed with /session-pane stays shut when the desktop attaches, until it is opened again', async ($, on) => {
+  const panes = sessionPane(on)
+  engine(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const run = () =>
+    $.command.run({ command: 'session-pane', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } })
+  const attach = () => $.session.attach({ surface: 'desktop', clientId: 'desktop:default' })
+
+  await run()
+  await attach()
+  expect(panes.opened).toEqual(['session'])
+
+  // Opened again, it opens on an attach as at the start.
+  await run()
+  expect(panes.opened).toEqual(['session', 'session'])
+})
+
+test('the band gives up as many rows as the panel takes, the usage box included', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  const session: Session = { model: 'claude-opus-5-5', window: 1_000_000 }
+  engine(on, {}, { cwd: '/' }, session)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  for (let n = 1; n <= 4; n++) await spawn($, 'Explore', `task ${n}`)
+  await clock.advance(1_000)
+
+  // The panel is the session box alone: three rows.
+  const alone = await bandLines($, 'terminal', 11)
+
+  // With the context and the limits it is the usage box too: four rows more.
+  session.percent = 18
+  session.rateLimits = [{ kind: 'five_hour', percentUsed: 55 }]
+  await clock.advance(1_000)
+  expect(await bandLines($, 'terminal', 15)).toHaveLength(alone.length)
+  expect((await bandLines($, 'terminal', 11)).length).toBeLessThan(alone.length)
+})
+
+test('the session panel shows the effort of the main loop as a bar beside the model', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  engine(on, {}, { cwd: '/' }, { model: 'claude-opus-5-5', window: 1_000_000 })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(1_000)
+
+  // None before the first request.
+  for (const surface of SURFACES) expect(await panelLines($, surface)).toEqual([' Opus 5.5 '])
+
+  await step($, undefined, 100, 'high')
+  for (const surface of SURFACES) expect(await panelLines($, surface)).toEqual([' Opus 5.5   Effort ███░░ high'])
+  expect(gaugeParts(await boxElements($, 'terminal', 'session'))).toEqual([
+    ['███', 'warning'],
+    ['░░', undefined],
+  ])
+
+  // A subagent's request leaves it alone; the next main one moves it.
+  await step($, 'a1', 100, 'low')
+  expect(await panelLines($, 'terminal')).toEqual([' Opus 5.5   Effort ███░░ high'])
+  await step($, undefined, 100, 'max')
+  expect(await panelLines($, 'terminal')).toEqual([' Opus 5.5   Effort █████ max'])
+  // A model without effort takes the bar away.
+  await step($, undefined, 100)
+  expect(await panelLines($, 'terminal')).toEqual([' Opus 5.5 '])
+})
+
+test('the context bar has a sparkline of its latest readings beside it', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  const session: Session = { model: 'claude-opus-5-5', window: 1_000_000, percent: 18 }
+  engine(on, {}, { cwd: '/' }, session)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(1_000)
+  const context = async (surface: (typeof SURFACES)[number]) => (await usageLines($, surface))[0]
+  const read = async (percent: number | undefined) => {
+    session.percent = percent
+    await clock.advance(1_000)
+  }
+
+  // One reading draws no trend.
+  for (const surface of SURFACES) expect(await context(surface)).toBe('Context ██░░░░░░░░ 18%')
+
+  // A cell a distinct reading, as high as the window it fills; a repeat adds none.
+  await read(40)
+  await read(40)
+  await read(70)
+  for (const surface of SURFACES) expect(await context(surface)).toBe('Context ███████░░░ 70% ▂▄▆')
+
+  // A compaction shows as a drop.
+  await read(5)
+  expect(await context('terminal')).toBe('Context █░░░░░░░░░ 5% ▂▄▆▁')
+
+  // The latest ten are kept.
+  for (let n = 1; n <= 12; n++) await read(n * 8)
+  expect(Array.from((await context('terminal'))?.split(' ').at(-1) ?? '')).toHaveLength(10)
+
+  // With no figure (after /clear) the readings go too.
+  await read(undefined)
+  expect(await usageLines($, 'terminal')).toEqual([])
+  await read(30)
+  expect(await context('terminal')).toBe('Context ███░░░░░░░ 30%')
 })

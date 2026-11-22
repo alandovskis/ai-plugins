@@ -1,18 +1,17 @@
 import type { Color, Elements, ModelUsage, RenderSurface } from 'claude-code'
 
 import type { FlowStatus, Place, RunStatus, SubagentCall, SubagentRun } from '../types'
+import { FRAME_ROWS, frame } from './frame'
 import { gauge, percentOf } from './gauge'
 import { MARKS, clip, duration, modelColor, modelName } from './shared'
 
-// The band above the prompt: what each subagent is doing, while it runs and
+// The band in the session pane: what each subagent is doing, while it runs and
 // for a short while after. What is here is pure: how the runs change, and how
 // they are drawn. register.tsx wires it to the events.
 
 // A finished subagent stays this long, so a quick one is not missed.
 const LINGER_MS = 30_000
 const MAX_ENTRIES = 6
-// The frame's top and bottom borders.
-const FRAME_ROWS = 2
 export const LABEL_MAX = 48
 export const TEXT_MAX = 120
 
@@ -129,6 +128,7 @@ export const bandRows = (runs: readonly SubagentRun[], at: number, maxRows: numb
 // worktree of its own.
 export const bandView = (
   { Box, Text }: Table,
+  surface: string,
   runs: readonly SubagentRun[],
   at: number,
   place: Place | null,
@@ -174,23 +174,23 @@ export const bandView = (
   const titleRoom = Math.max(0, room.bodyColumns - TITLE_CHROME - TITLE.length)
   const where = place === null || titleRoom === 0 ? '' : clip(` · ${placeText(place)}`, titleRoom)
 
-  return (
-    <Box key="subagents" flexDirection="column" width={room.bodyColumns} borderStyle="round" borderDimColor paddingX={1}>
-      <Box key="subagents-title" position="absolute" top={-1} left={1}>
-        <Text>
-          {' '}
-          <Text bold>{TITLE}</Text>
-          {where}{' '}
-        </Text>
-      </Box>
-      {isEmpty ? (
+  return frame(
+    { Box, Text },
+    surface,
+    {
+      key: 'subagents',
+      columns: room.bodyColumns,
+      title: [' ', <Text bold>{TITLE}</Text>, where, ' '],
+    },
+    [
+      isEmpty ? (
         <Text dimColor wrap="truncate-end">
           {EMPTY}
         </Text>
       ) : (
         shown.map(entry)
-      )}
-      {more > 0 ? <Text dimColor>+{more} more</Text> : null}
-    </Box>
+      ),
+      more > 0 ? <Text dimColor>+{more} more</Text> : null,
+    ],
   )
 }
