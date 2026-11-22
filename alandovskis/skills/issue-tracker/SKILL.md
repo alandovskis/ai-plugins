@@ -1,6 +1,6 @@
 ---
 name: issue-tracker
-description: Issues are tracked in Jira (Atlassian MCP) or GitHub Issues (gh), whichever the project uses. Use whenever filing, finding, updating, linking or commenting on an issue, bug, ticket, task, story or epic, or when a plan or document says where work is tracked.
+description: Issues are tracked in Jira (Atlassian MCP), GitHub Issues (gh) or Linear (Linear MCP), whichever the project uses. Use whenever filing, finding, updating, linking or commenting on an issue, bug, ticket, task, story or epic, or when a plan or document says where work is tracked.
 ---
 
 # Issue tracker: Jira, GitHub Issues or Linear
