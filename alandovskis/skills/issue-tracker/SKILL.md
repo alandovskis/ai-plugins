@@ -1,11 +1,11 @@
 ---
 name: issue-tracker
-description: Issues are tracked in Jira (Atlassian MCP) or GitHub Issues (gh), whichever the project uses. Use whenever filing, finding, updating, linking or commenting on an issue, bug, ticket, task, story or epic, or when a plan or document says where work is tracked.
+description: Issues are tracked in Jira (Atlassian MCP), GitHub Issues (gh) or Linear (Linear MCP), whichever the project uses. Use whenever filing, finding, updating, linking or commenting on an issue, bug, ticket, task, story or epic, or when a plan or document says where work is tracked.
 ---
 
-# Issue tracker: Jira or GitHub Issues
+# Issue tracker: Jira, GitHub Issues or Linear
 
-Issues are tracked in **Jira** or **GitHub Issues**, depending on the project. Use the one the project already uses (look at its docs, existing issue keys, branch and PR names). If it is unclear, ask the user. Do not use or suggest another tracker (Linear, GitLab issues, TODO files), even if the user asks for one by name: say that issues are tracked in Jira or GitHub Issues and file it in the project's tracker instead.
+Issues are tracked in **Jira**, **GitHub Issues** or **Linear**, depending on the project. Use the one the project already uses (look at its docs, existing issue keys, branch and PR names). If it is unclear, ask the user. Do not use or suggest another tracker (GitLab issues, TODO files), even if the user asks for one by name: say that issues are tracked in Jira, GitHub Issues or Linear and file it in the project's tracker instead.
 
 ## Jira
 
@@ -20,4 +20,11 @@ Issues are tracked in **Jira** or **GitHub Issues**, depending on the project. U
 - If `gh` is missing or not authenticated, say so and ask the user to fix it.
 - Reference issues by number (for example `#123`) in commits, branches, pull requests and documents.
 
-Confirm before bulk or destructive changes in either tracker.
+## Linear
+
+- Use the **Linear MCP** tools for all Linear work: creating, reading, searching, updating, linking and commenting. Do not use the Linear web UI, raw GraphQL or REST calls, or other Linear CLIs.
+- Resolve the team first (list the teams). If there are several or the project is unclear, ask the user rather than guessing.
+- If no Linear tools are available, say so and ask the user to connect the Linear MCP.
+- Reference issues by their identifier (for example `ENG-123`) in commits, branches, pull requests and documents.
+
+Confirm before bulk or destructive changes in any tracker.

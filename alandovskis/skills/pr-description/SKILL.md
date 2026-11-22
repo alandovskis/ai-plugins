@@ -5,7 +5,7 @@ description: Use when writing or updating a pull request description, when a cha
 
 # PR description: an evidence pack for the reviewer
 
-Runs after implementation and writes the whole PR description as an evidence pack, so the reviewer does not rebuild the requirements, risks and gaps from the diff. "Everything works" is tone, not proof: every claim is backed by a test, output or capture, and what was not checked is said. The Proof section is built from captured evidence: it exercises the changed behaviour the way the project says to, captures an ordered record of it, stores the files outside the PR branch, has a reviewer check them, and returns a block for the PR body. It uses the `gh` and `git` CLIs and the project config in `.github/issue-flow.json` (schema in `issue-flow/config.md`). Before starting, announce the step:
+Runs after implementation and writes the whole PR description as an evidence pack, so the reviewer does not rebuild the requirements, risks and gaps from the diff. "Everything works" is tone, not proof: every claim is backed by a test, output or capture, and what was not checked is said. The Proof section is built from captured evidence: it exercises the changed behaviour the way the project says to, captures an ordered record of it, stores the files outside the PR branch, has a reviewer check them, and returns a block for the PR body. It uses the `gh` and `git` CLIs and the project config in `.github/issue-flow.json` (schema in `issue-flow/config.md`). When the caller gives an issue number, announce the step before starting (a PR with no issue announces nothing: the marker needs a number):
 
 ```
 echo "issue-flow: step issue=<n> step=evidence"
@@ -13,32 +13,32 @@ echo "issue-flow: step issue=<n> step=evidence"
 
 ## Input
 
-The worktree path holding the implemented change, its PR branch, the issue number, and `howToExercise` from the feasibility verdict. For a PR with no issue, the caller gives the branch's slug in place of the issue number (used wherever `issue-<n>` appears) and `howToExercise` is worked out from the diff.
+The worktree path holding the implemented change, its PR branch, the issue number, and `howToExercise` from the feasibility verdict. For a PR with no issue, the caller gives the branch's slug and the PR head's first 7 SHA characters, joined as `<slug>-<sha>`, in place of the issue number (used wherever `issue-<n>` appears, so two branches or recaptures never share a directory) and `howToExercise` is worked out from the diff.
 
 ## Steps
 
 1. Read `.github/issue-flow.json` for `run` and `evidence`. Follow that text, not an assumption: `run` says how to launch and drive the app, `evidence` says how to capture it. Never assume a browser; a CLI, library, service or embedded project is evidenced with terminal captures, test output or logs. Launch and drive the app the way the `run` skill does, from the worktree.
-2. Record the head SHA the evidence is captured at (`git -C <worktree> rev-parse HEAD`); the caller compares it with the PR's head and recaptures if they differ. Exercise the change as `howToExercise` describes, one step at a time. Capture a numbered sequence of steps, each `{ caption, file }`: the caption states the action taken and the result seen (for example "3. Toggle dark mode: the page turns dark"), the file is the capture (screenshot, terminal capture, or text/log output). Cover every behaviour the issue asks for, including the result and not only the setup. Write captures to a scratch directory outside the worktree.
-3. Dispatch the `evidence-reviewer` agent with the issue number and the ordered steps with the local paths of their captured files in the scratch directory. Do this before anything is pushed. Do not judge the evidence yourself. It returns `{ verdict, gaps }`.
+2. Record the head SHA the evidence is captured at (`git -C <worktree> rev-parse HEAD`); the caller compares it with the PR's head and recaptures if they differ. Exercise the change as `howToExercise` describes, one step at a time. Capture a numbered sequence of steps, each `{ caption, file }`: the caption states the action taken and the result seen (for example "3. Toggle dark mode: the page turns dark"), the file is the capture (screenshot, terminal capture, or text/log output). Cover every behaviour the issue asks for, including the result and not only the setup. Write captures to a scratch directory outside the worktree. Exercise the change with test credentials and fixtures, and never dump the environment or config files (`env`, `printenv`, `cat .env`) into a capture.
+3. Dispatch the `evidence-reviewer` agent with the issue number and the ordered steps with the local paths of their captured files in the scratch directory. Do this before anything is pushed. Do not judge the evidence yourself. It returns `{ verdict, gaps }`. Before dispatching, read every capture yourself for secrets and personal data (tokens, keys, `Authorization` or cookie headers, connection strings, emails, names) and redact them or recapture without them; captures are published and pasted into the PR body, and a pushed secret stays in the branch history. If a secret cannot be removed from a capture (for example in a screenshot), recapture without it; if that is not possible, publish nothing and report it to the caller as a gap.
 4. If `verdict` is `gaps`, the evidence is incomplete: the PR must not be opened. Publish nothing; rejected evidence is never pushed. Report the gaps to the caller, who fixes the change or recaptures; do not return a PR-body block as if the evidence were complete.
-5. If `verdict` is `pass`, publish the files to the branch `issue-flow-evidence`, never to the PR branch. The local `issue-flow-evidence` branch can be checked out in only one worktree, so publish for one issue at a time; when several issues are in flight, wait for any other publish to finish. Use a separate worktree checkout of that branch so the PR worktree stays clean:
+5. If `verdict` is `pass`, publish the files to the branch `issue-flow-evidence`, never to the PR branch. Use a separate, detached worktree checkout of that branch (no local branch is checked out, so concurrent publishes do not block each other) so the PR worktree stays clean:
 
 ```
 git fetch origin issue-flow-evidence
-git worktree add <scratch>/evidence issue-flow-evidence
+git worktree add --detach <scratch>/evidence origin/issue-flow-evidence
 ```
 
-If the branch does not exist, create it as an orphan (`git worktree add --detach <scratch>/evidence`, then `git -C <scratch>/evidence checkout --orphan issue-flow-evidence` and `git -C <scratch>/evidence rm -rf .`). Copy the files into `issue-<n>/` there, then commit and push, rebasing first so a stale local branch or a concurrent push is not rejected as non-fast-forward (skip the pull for a brand-new orphan branch):
+If the branch does not exist, create it as an orphan (`git worktree add --detach <scratch>/evidence HEAD`, then `git -C <scratch>/evidence checkout --orphan -B issue-flow-evidence` and `git -C <scratch>/evidence rm -rf .`). Copy the files into `issue-<n>/` there, then commit and push, rebasing first so a stale local branch or a concurrent push is not rejected as non-fast-forward (skip the pull for a brand-new orphan branch):
 
 ```
 git -C <scratch>/evidence add issue-<n>
 git -C <scratch>/evidence commit -m "evidence: issue <n>"
 git -C <scratch>/evidence pull --rebase origin issue-flow-evidence
-git -C <scratch>/evidence push origin issue-flow-evidence
+git -C <scratch>/evidence push origin HEAD:issue-flow-evidence
 git worktree remove <scratch>/evidence
 ```
 
-If the push still fails, remove the evidence worktree anyway (`git worktree remove --force <scratch>/evidence`) so the branch is free for the next publish, and report the failure instead of a PR-body block.
+If the push is rejected, repeat the `pull --rebase` and `push` up to three times (for a brand-new orphan branch, `fetch` and rebase onto `origin/issue-flow-evidence` first if another run created it meanwhile). If it still fails, remove the evidence worktree anyway (`git worktree remove --force <scratch>/evidence`) and report the failure instead of a PR-body block.
 
 6. Return the description below.
 
@@ -79,7 +79,7 @@ Build file URLs as `https://github.com/<owner>/<repo>/raw/issue-flow-evidence/is
 ```
 
 - **Behavior**: one line per behavior the issue or spec asks for, with its item number.
-- **Proof**: for each behavior, its numbered evidence step (steps 1 to 5 above): the number and caption, then the evidence. Visual evidence is an embedded image; non-visual evidence is the text or log in a fenced code block with a link to its raw file. Add the test name and result, or a diff fragment, where there is one; prefer a test that fails once the implementation is reverted, and say whether that was shown. A test plan or "tests pass" is not proof.
+- **Proof**: for each behavior, its numbered evidence step (from the sequence captured in step 2): the number and caption, then the evidence. Visual evidence is an embedded image; non-visual evidence is the text or log in a fenced code block with a link to its raw file. Add the test name and result, or a diff fragment, where there is one; prefer a test that fails once the implementation is reverted, and say whether that was shown. A test plan or "tests pass" is not proof.
 - **Risk**: the surface touched and a level. Judge it from the diff, not from how confident the change feels.
 - **Unknowns**: what was not checked and why. If nothing, write exactly "no unknowns identified within the checks performed".
 - **Rollback plan**: how to undo the change (switch, revert, data repair) and the metric or signal that forces it.
